@@ -1,5 +1,6 @@
 export type ScriptType = "hiragana" | "katakana";
 export type LevelId = "beginner" | "intermediate" | "advanced" | "native";
+export type StudyLevel = "beginner" | "intermediate" | "advanced";
 
 export interface KanaChar {
   char: string;

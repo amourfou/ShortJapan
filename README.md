@@ -11,21 +11,41 @@ pnpm dev
 
 브라우저에서 [http://localhost:3000](http://localhost:3000) 으로 접속하세요.
 
+### Supabase
+
+1. `supabase-schema.sql` 을 Supabase SQL Editor에서 실행 (기존 `users` 테이블 공유)
+2. `.env.local` 에 키 설정 (HaanRiver와 동일 프로젝트 가능)
+
+```env
+NEXT_PUBLIC_SUPABASE_URL=...
+NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+```
+
+3. Vercel Environment Variables에도 같은 키 추가
+
+### 로그인
+
+- `users` 테이블에 **이미 있는 이름**만 로그인 가능 (신규 가입 없음)
+
 ## 기술 스택
 
 - Next.js 14 (App Router)
 - TypeScript
 - Tailwind CSS
+- Supabase
+- recharts
 - pnpm
 
 ## 기능
 
 | 레벨 | 내용 | 상태 |
 |------|------|------|
-| **초급** | 히라가나/카타카나 글자, 음차 필터, 5초 타이머 후 한국어 발음 | ✅ |
-| **중급** | 상황 카테고리 + 음차 필터 (둘 다 맞는 단어만) | ✅ |
-| **고급** | 상황별 문장, 같은 카테고리 필터 | ✅ |
+| **초급** | 글자 연습/테스트, 음차 필터, 설정 DB 저장 | ✅ |
+| **중급** | 상황+음차 단어 연습/테스트 | ✅ |
+| **고급** | 문장 연습/테스트, 길이에 따른 타이머(5~15초) | ✅ |
 | **현지인** | 한자 포함 | 준비중 |
+| **테스트** | 20문제 5지선다, 시간초과=오답, 점수·오답 DB 저장, 자주 틀린 문제 우선 출제 | ✅ |
+| **통계** | 점수 추이 그래프, 틀린 문제 분포 | ✅ |
 
 ### 상황 카테고리 (중급·고급 공통)
 

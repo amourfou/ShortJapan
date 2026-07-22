@@ -14,6 +14,7 @@ import {
   parseCategoryParam,
   pickRandomSentence,
 } from "@/lib/practice";
+import { timerSecondsForSentence } from "@/lib/testEngine";
 import type { SentenceItem } from "@/lib/types";
 
 function AdvancedPracticeInner() {
@@ -68,10 +69,12 @@ function AdvancedPracticeInner() {
     );
   }
 
+  const timerSec = timerSecondsForSentence(current.sentence);
+
   return (
     <PageShell
       title="고급 연습"
-      subtitle="문장의 뜻과 읽는 법을 떠올려 보세요"
+      subtitle={`문장 길이에 따라 ${timerSec}초 · 뜻과 읽는 법을 떠올려 보세요`}
       backHref="/advanced"
     >
       <div className="flex flex-1 flex-col gap-5">
@@ -79,6 +82,7 @@ function AdvancedPracticeInner() {
           <CountdownTimer
             key={`${current.id}-${round}`}
             resetKey={`${current.id}-${round}`}
+            seconds={timerSec}
             onComplete={() => setRevealed(true)}
             paused={revealed}
           />

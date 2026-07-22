@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Noto_Sans_JP, Noto_Sans_KR } from "next/font/google";
+import { Providers } from "@/components/Providers";
 import "./globals.css";
 
 const notoSansKr = Noto_Sans_KR({
@@ -35,7 +36,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ko" className={`${notoSansKr.variable} ${notoSansJp.variable}`}>
-      <body className="font-sans antialiased text-slate-50">{children}</body>
+      <body className="font-sans antialiased text-slate-50">
+        <Providers>{children}</Providers>
+      </body>
     </html>
   );
 }

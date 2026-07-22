@@ -11,11 +11,12 @@ import {
 } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  clearUserIdCookie,
+  clearUserSession,
+  getStoredSession,
+  getStoredUserId,
   getUserById,
-  getUserIdFromCookie,
   loginByName,
-  saveUserIdToCookie,
+  saveUserSession,
 } from "@/lib/auth";
 import type { DbUser } from "@/lib/supabase";
 
@@ -38,17 +39,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
 
   const refresh = useCallback(async () => {
-    const id = getUserIdFromCookie();
+    const id = getStoredUserId();
     if (!id) {
       setUser(null);
       setLoading(false);
       return;
     }
+
+    // Optional optimistic restore from localStorage while validating
+    const cached = getStoredSession();
+    if (cached?.id && cached.name) {
+      setUser({
+        id: cached.id,
+        name: cached.name,
+        organization: cached.organization,
+        high_score: 0,
+        created_at: "",
+        updated_at: "",
+      });
+    }
+
     const u = await getUserById(id);
     if (!u) {
-      clearUserIdCookie();
+      clearUserSession();
       setUser(null);
     } else {
+      saveUserSession(u);
       setUser(u);
     }
     setLoading(false);
@@ -80,13 +96,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           "등록된 사용자가 아닙니다. users 테이블에 있는 이름만 로그인할 수 있어요.",
       };
     }
-    saveUserIdToCookie(u.id);
+    saveUserSession(u);
     setUser(u);
     return { ok: true };
   }, []);
 
   const logout = useCallback(() => {
-    clearUserIdCookie();
+    clearUserSession();
     setUser(null);
     router.replace("/login");
   }, [router]);

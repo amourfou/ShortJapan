@@ -16,6 +16,7 @@ import {
   getStoredUserId,
   getUserById,
   loginByName,
+  registerUser,
   saveUserSession,
 } from "@/lib/auth";
 import type { DbUser } from "@/lib/supabase";
@@ -24,6 +25,10 @@ interface AuthContextValue {
   user: DbUser | null;
   loading: boolean;
   login: (name: string) => Promise<{ ok: boolean; message?: string }>;
+  register: (
+    name: string,
+    organization: string
+  ) => Promise<{ ok: boolean; message?: string }>;
   logout: () => void;
   refresh: () => Promise<void>;
 }
@@ -92,9 +97,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!u) {
       return {
         ok: false,
-        message:
-          "등록된 사용자가 아닙니다. users 테이블에 있는 이름만 로그인할 수 있어요.",
+        message: "이름을 찾을 수 없어요. 등록 후 이용해 주세요.",
       };
+    }
+    saveUserSession(u);
+    setUser(u);
+    return { ok: true };
+  }, []);
+
+  const register = useCallback(async (name: string, organization: string) => {
+    const { user: u, error } = await registerUser(name, organization);
+    if (!u) {
+      return { ok: false, message: error ?? "등록 실패" };
     }
     saveUserSession(u);
     setUser(u);
@@ -108,8 +122,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [router]);
 
   const value = useMemo(
-    () => ({ user, loading, login, logout, refresh }),
-    [user, loading, login, logout, refresh]
+    () => ({ user, loading, login, register, logout, refresh }),
+    [user, loading, login, register, logout, refresh]
   );
 
   const isPublic = PUBLIC_PATHS.some(

@@ -32,7 +32,6 @@ function AdvancedPracticeInner() {
   const [current, setCurrent] = useState<SentenceItem | null>(null);
   const [revealed, setRevealed] = useState(false);
   const [round, setRound] = useState(0);
-  const [autoPlayEnabled, setAutoPlayEnabled] = useState(true);
 
   useEffect(() => {
     warmUpVoices();
@@ -49,17 +48,20 @@ function AdvancedPracticeInner() {
     setRound(0);
   }, [pool]);
 
-  // Auto-play when sentence changes (may be blocked until first user tap on some mobiles)
+  // Play Japanese audio only when answer is revealed (with 정답)
   useEffect(() => {
-    if (!current || !autoPlayEnabled) return;
+    if (!revealed || !current) return;
     const t = window.setTimeout(() => {
       speakJapanese(current.sentence);
-    }, 250);
+    }, 150);
     return () => {
       window.clearTimeout(t);
-      stopSpeaking();
     };
-  }, [current?.id, round, autoPlayEnabled]);
+  }, [revealed, current?.id, round]);
+
+  const revealAnswer = useCallback(() => {
+    setRevealed(true);
+  }, []);
 
   const goNext = useCallback(() => {
     if (pool.length === 0) return;
@@ -95,7 +97,7 @@ function AdvancedPracticeInner() {
   return (
     <PageShell
       title="고급 연습"
-      subtitle={`문장 길이에 따라 ${timerSec}초 · 듣고 뜻을 떠올려 보세요`}
+      subtitle={`문장 길이에 따라 ${timerSec}초 · 정답과 함께 음성이 나와요`}
       backHref="/advanced"
     >
       <div className="flex flex-1 flex-col gap-5">
@@ -104,7 +106,7 @@ function AdvancedPracticeInner() {
             key={`${current.id}-${round}`}
             resetKey={`${current.id}-${round}`}
             seconds={timerSec}
-            onComplete={() => setRevealed(true)}
+            onComplete={revealAnswer}
             paused={revealed}
           />
         </div>
@@ -115,18 +117,6 @@ function AdvancedPracticeInner() {
           size="word"
         />
 
-        <SpeakButton text={current.sentence} label="문장 듣기" />
-
-        <label className="flex items-center justify-center gap-2 text-xs text-slate-400">
-          <input
-            type="checkbox"
-            checked={autoPlayEnabled}
-            onChange={(e) => setAutoPlayEnabled(e.target.checked)}
-            className="h-4 w-4 rounded border-slate-400 text-sky-500"
-          />
-          다음 문장 자동 재생
-        </label>
-
         <RevealPanel
           title="정답"
           visible={revealed}
@@ -136,13 +126,17 @@ function AdvancedPracticeInner() {
           ]}
         />
 
+        {revealed && (
+          <SpeakButton text={current.sentence} label="다시 듣기" />
+        )}
+
         <div className="mt-auto space-y-2 pt-2">
           <PrimaryButton onClick={goNext} disabled={!revealed}>
             다음 문장
           </PrimaryButton>
           <PrimaryButton
             variant="ghost"
-            onClick={() => setRevealed(true)}
+            onClick={revealAnswer}
             disabled={revealed}
           >
             지금 바로 보기

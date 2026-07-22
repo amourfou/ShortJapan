@@ -108,68 +108,36 @@ export const KATAKANA_ROWS: KanaRow[] = [
     ],
   },
   {
-    id: "wa",
-    labelKo: "와오/응",
-    labelJa: "ワヲン",
+    id: "other",
+    labelKo: "기타 나머지",
+    labelJa: "ワヲン · 탁음 · 반탁음",
     chars: [
+      // 와행
       { char: "ワ", readingKo: "와" },
       { char: "ヲ", readingKo: "오" },
       { char: "ン", readingKo: "응" },
-    ],
-  },
-  {
-    id: "ga",
-    labelKo: "가행 (탁음)",
-    labelJa: "ガギグゲゴ",
-    chars: [
+      // 탁음
       { char: "ガ", readingKo: "가" },
       { char: "ギ", readingKo: "기" },
       { char: "グ", readingKo: "구" },
       { char: "ゲ", readingKo: "게" },
       { char: "ゴ", readingKo: "고" },
-    ],
-  },
-  {
-    id: "za",
-    labelKo: "자행 (탁음)",
-    labelJa: "ザジズゼゾ",
-    chars: [
       { char: "ザ", readingKo: "자" },
       { char: "ジ", readingKo: "지" },
       { char: "ズ", readingKo: "즈" },
       { char: "ゼ", readingKo: "제" },
       { char: "ゾ", readingKo: "조" },
-    ],
-  },
-  {
-    id: "da",
-    labelKo: "다행 (탁음)",
-    labelJa: "ダヂヅデド",
-    chars: [
       { char: "ダ", readingKo: "다" },
       { char: "ヂ", readingKo: "지" },
       { char: "ヅ", readingKo: "즈" },
       { char: "デ", readingKo: "데" },
       { char: "ド", readingKo: "도" },
-    ],
-  },
-  {
-    id: "ba",
-    labelKo: "바행 (탁음)",
-    labelJa: "バビブベボ",
-    chars: [
       { char: "バ", readingKo: "바" },
       { char: "ビ", readingKo: "비" },
       { char: "ブ", readingKo: "부" },
       { char: "ベ", readingKo: "베" },
       { char: "ボ", readingKo: "보" },
-    ],
-  },
-  {
-    id: "pa",
-    labelKo: "파행 (반탁음)",
-    labelJa: "パピプペポ",
-    chars: [
+      // 반탁음
       { char: "パ", readingKo: "파" },
       { char: "ピ", readingKo: "피" },
       { char: "プ", readingKo: "푸" },

@@ -108,68 +108,36 @@ export const HIRAGANA_ROWS: KanaRow[] = [
     ],
   },
   {
-    id: "wa",
-    labelKo: "와오/응",
-    labelJa: "わをん",
+    id: "other",
+    labelKo: "기타 나머지",
+    labelJa: "わをん · 탁음 · 반탁음",
     chars: [
+      // 와행
       { char: "わ", readingKo: "와" },
       { char: "を", readingKo: "오" },
       { char: "ん", readingKo: "응" },
-    ],
-  },
-  {
-    id: "ga",
-    labelKo: "가행 (탁음)",
-    labelJa: "がぎぐげご",
-    chars: [
+      // 탁음
       { char: "が", readingKo: "가" },
       { char: "ぎ", readingKo: "기" },
       { char: "ぐ", readingKo: "구" },
       { char: "げ", readingKo: "게" },
       { char: "ご", readingKo: "고" },
-    ],
-  },
-  {
-    id: "za",
-    labelKo: "자행 (탁음)",
-    labelJa: "ざじずぜぞ",
-    chars: [
       { char: "ざ", readingKo: "자" },
       { char: "じ", readingKo: "지" },
       { char: "ず", readingKo: "즈" },
       { char: "ぜ", readingKo: "제" },
       { char: "ぞ", readingKo: "조" },
-    ],
-  },
-  {
-    id: "da",
-    labelKo: "다행 (탁음)",
-    labelJa: "だぢづでど",
-    chars: [
       { char: "だ", readingKo: "다" },
       { char: "ぢ", readingKo: "지" },
       { char: "づ", readingKo: "즈" },
       { char: "で", readingKo: "데" },
       { char: "ど", readingKo: "도" },
-    ],
-  },
-  {
-    id: "ba",
-    labelKo: "바행 (탁음)",
-    labelJa: "ばびぶべぼ",
-    chars: [
       { char: "ば", readingKo: "바" },
       { char: "び", readingKo: "비" },
       { char: "ぶ", readingKo: "부" },
       { char: "べ", readingKo: "베" },
       { char: "ぼ", readingKo: "보" },
-    ],
-  },
-  {
-    id: "pa",
-    labelKo: "파행 (반탁음)",
-    labelJa: "ぱぴぷぺぽ",
-    chars: [
+      // 반탁음
       { char: "ぱ", readingKo: "파" },
       { char: "ぴ", readingKo: "피" },
       { char: "ぷ", readingKo: "푸" },

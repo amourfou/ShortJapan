@@ -224,11 +224,31 @@ export function TestQuiz({
     window.setTimeout(() => goNextAfterFeedback(payload), FEEDBACK_MS);
   }, [current, phase, speech, choices, goNextAfterFeedback]);
 
-  /** Manual tap only selects a choice (does not skip timer). */
+  /**
+   * Manual tap: skip speech wait — grade immediately by choice, show result, next.
+   */
   const onPickChoice = (choice: string) => {
-    if (phase !== "running") return;
+    if (!current || phase !== "running" || gradingRef.current) return;
+    gradingRef.current = true;
+
+    speech.stop();
     setSelected(choice);
     selectedRef.current = choice;
+    setHeardFinal(""); // 탭 선택 — 음성 인식 결과 없음
+
+    const isCorrect = choice === current.answer;
+    setFeedback(isCorrect ? "correct" : "wrong");
+    setPhase("feedback");
+
+    const payload: AnswerPayload = {
+      itemId: current.id,
+      prompt: current.prompt,
+      correctAnswer: current.answer,
+      selectedAnswer: choice,
+      isCorrect,
+    };
+
+    window.setTimeout(() => goNextAfterFeedback(payload), FEEDBACK_MS);
   };
 
   if (pool.length === 0) {
@@ -254,9 +274,9 @@ export function TestQuiz({
         <div className="flex flex-1 flex-col gap-4">
           <ul className="space-y-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-4 text-sm text-slate-300">
             <li>· 문제 수: 최대 {TEST_QUESTION_COUNT}문항</li>
-            <li>· 한국어 발음 4지선다 (탭으로 선택 가능)</li>
-            <li>· 말하면 자동으로 보기가 선택됩니다</li>
-            <li>· 타이머가 끝나면 인식 결과로 채점한 뒤 다음 문제</li>
+            <li>· 보기를 바로 고르면 즉시 채점 후 다음 문제</li>
+            <li>· 말하면 보기가 자동 선택되고, 타이머 종료 시 채점</li>
+            <li>· 타이머 안에 말·선택 없으면 오답 처리</li>
             <li>· 자주 틀린 문제가 더 자주 나옵니다</li>
           </ul>
           <div className="mt-auto">

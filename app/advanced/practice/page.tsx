@@ -1,24 +1,28 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { AnswerComparePanel } from "@/components/AnswerComparePanel";
 import { CountdownTimer } from "@/components/CountdownTimer";
+import { ListeningBadge } from "@/components/ListeningBadge";
 import { PageShell } from "@/components/PageShell";
 import { PracticeCard } from "@/components/PracticeCard";
 import { PrimaryButton } from "@/components/PrimaryButton";
-import { RevealPanel } from "@/components/RevealPanel";
 import { SpeakButton } from "@/components/SpeakButton";
-import { SpeechAnswerButton } from "@/components/SpeechAnswerButton";
+import { useAutoSpeech } from "@/hooks/useAutoSpeech";
 import { allCategoryIds, getCategoryLabel } from "@/lib/data/categories";
 import {
   filterSentences,
   parseCategoryParam,
   pickRandomSentence,
 } from "@/lib/practice";
+import { matchesSpokenAnswer } from "@/lib/speechRecognition";
 import { speakJapanese, stopSpeaking, warmUpVoices } from "@/lib/speech";
 import { timerSecondsForSentence } from "@/lib/testEngine";
 import type { SentenceItem } from "@/lib/types";
+
+const FEEDBACK_MS = 2500;
 
 function AdvancedPracticeInner() {
   const searchParams = useSearchParams();
@@ -33,6 +37,12 @@ function AdvancedPracticeInner() {
   const [current, setCurrent] = useState<SentenceItem | null>(null);
   const [revealed, setRevealed] = useState(false);
   const [round, setRound] = useState(0);
+  const [heard, setHeard] = useState("");
+  const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
+  const gradingRef = useRef(false);
+
+  const questionKey = current ? `${current.id}-${round}` : "none";
+  const speech = useAutoSpeech(!!current && !revealed, questionKey);
 
   useEffect(() => {
     warmUpVoices();
@@ -47,30 +57,42 @@ function AdvancedPracticeInner() {
     setCurrent(pickRandomSentence(pool, null));
     setRevealed(false);
     setRound(0);
+    setHeard("");
+    setIsCorrect(null);
+    gradingRef.current = false;
   }, [pool]);
 
-  // Play Japanese audio only when answer is revealed (with 정답)
+  // Japanese TTS only when answer is revealed
   useEffect(() => {
     if (!revealed || !current) return;
     const t = window.setTimeout(() => {
       speakJapanese(current.sentence);
-    }, 150);
-    return () => {
-      window.clearTimeout(t);
-    };
+    }, 200);
+    return () => window.clearTimeout(t);
   }, [revealed, current?.id, round]);
-
-  const revealAnswer = useCallback(() => {
-    setRevealed(true);
-  }, []);
 
   const goNext = useCallback(() => {
     if (pool.length === 0) return;
     stopSpeaking();
+    gradingRef.current = false;
     setCurrent((prev) => pickRandomSentence(pool, prev));
     setRevealed(false);
+    setHeard("");
+    setIsCorrect(null);
     setRound((r) => r + 1);
   }, [pool]);
+
+  const finishRound = useCallback(() => {
+    if (!current || gradingRef.current) return;
+    gradingRef.current = true;
+    speech.stop();
+    const transcript = speech.getTranscript();
+    const ok = !!transcript && matchesSpokenAnswer(transcript, current.readingKo);
+    setHeard(transcript);
+    setIsCorrect(ok);
+    setRevealed(true);
+    window.setTimeout(() => goNext(), FEEDBACK_MS);
+  }, [current, speech, goNext]);
 
   if (pool.length === 0) {
     return (
@@ -98,16 +120,16 @@ function AdvancedPracticeInner() {
   return (
     <PageShell
       title="고급 연습"
-      subtitle={`문장 길이에 따라 ${timerSec}초 · 말로 답하거나 떠올려 보세요`}
+      subtitle={`문장 ${timerSec}초 · 읽는 법을 말해 보세요 · 정답 시 일본어 음성`}
       backHref="/advanced"
     >
       <div className="flex flex-1 flex-col gap-5">
         <div className="flex justify-center">
           <CountdownTimer
-            key={`${current.id}-${round}`}
-            resetKey={`${current.id}-${round}`}
+            key={questionKey}
+            resetKey={questionKey}
             seconds={timerSec}
-            onComplete={revealAnswer}
+            onComplete={finishRound}
             paused={revealed}
           />
         </div>
@@ -119,20 +141,20 @@ function AdvancedPracticeInner() {
         />
 
         {!revealed && (
-          <SpeechAnswerButton
-            expectedAnswer={current.readingKo}
-            onCorrect={revealAnswer}
-            label="읽는 법 말하기"
+          <ListeningBadge
+            listening={speech.listening}
+            supported={speech.supported}
+            transcript={speech.transcript}
+            error={speech.error}
           />
         )}
 
-        <RevealPanel
-          title="정답"
+        <AnswerComparePanel
           visible={revealed}
-          lines={[
-            { value: current.meaningKo, large: true },
-            { label: "읽는 법:", value: current.readingKo },
-          ]}
+          heard={heard}
+          correctAnswer={current.readingKo}
+          isCorrect={isCorrect}
+          extra={{ label: "뜻:", value: current.meaningKo }}
         />
 
         {revealed && (
@@ -143,12 +165,8 @@ function AdvancedPracticeInner() {
           <PrimaryButton onClick={goNext} disabled={!revealed}>
             다음 문장
           </PrimaryButton>
-          <PrimaryButton
-            variant="ghost"
-            onClick={revealAnswer}
-            disabled={revealed}
-          >
-            지금 바로 보기
+          <PrimaryButton variant="ghost" onClick={finishRound} disabled={revealed}>
+            지금 채점하기
           </PrimaryButton>
         </div>
       </div>

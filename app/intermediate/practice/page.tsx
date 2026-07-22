@@ -1,14 +1,15 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { AnswerComparePanel } from "@/components/AnswerComparePanel";
 import { CountdownTimer } from "@/components/CountdownTimer";
+import { ListeningBadge } from "@/components/ListeningBadge";
 import { PageShell } from "@/components/PageShell";
 import { PracticeCard } from "@/components/PracticeCard";
 import { PrimaryButton } from "@/components/PrimaryButton";
-import { RevealPanel } from "@/components/RevealPanel";
-import { SpeechAnswerButton } from "@/components/SpeechAnswerButton";
+import { useAutoSpeech } from "@/hooks/useAutoSpeech";
 import { allCategoryIds, getCategoryLabel } from "@/lib/data/categories";
 import {
   allRowIds,
@@ -17,7 +18,10 @@ import {
   parseCategoryParam,
   pickRandomWord,
 } from "@/lib/practice";
+import { matchesSpokenAnswer } from "@/lib/speechRecognition";
 import type { WordItem } from "@/lib/types";
+
+const FEEDBACK_MS = 2000;
 
 function IntermediatePracticeInner() {
   const searchParams = useSearchParams();
@@ -35,6 +39,12 @@ function IntermediatePracticeInner() {
   const [current, setCurrent] = useState<WordItem | null>(null);
   const [revealed, setRevealed] = useState(false);
   const [round, setRound] = useState(0);
+  const [heard, setHeard] = useState("");
+  const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
+  const gradingRef = useRef(false);
+
+  const questionKey = current ? `${current.id}-${round}` : "none";
+  const speech = useAutoSpeech(!!current && !revealed, questionKey);
 
   useEffect(() => {
     if (pool.length === 0) {
@@ -44,14 +54,32 @@ function IntermediatePracticeInner() {
     setCurrent(pickRandomWord(pool, null));
     setRevealed(false);
     setRound(0);
+    setHeard("");
+    setIsCorrect(null);
+    gradingRef.current = false;
   }, [pool]);
 
   const goNext = useCallback(() => {
     if (pool.length === 0) return;
+    gradingRef.current = false;
     setCurrent((prev) => pickRandomWord(pool, prev));
     setRevealed(false);
+    setHeard("");
+    setIsCorrect(null);
     setRound((r) => r + 1);
   }, [pool]);
+
+  const finishRound = useCallback(() => {
+    if (!current || gradingRef.current) return;
+    gradingRef.current = true;
+    speech.stop();
+    const transcript = speech.getTranscript();
+    const ok = !!transcript && matchesSpokenAnswer(transcript, current.readingKo);
+    setHeard(transcript);
+    setIsCorrect(ok);
+    setRevealed(true);
+    window.setTimeout(() => goNext(), FEEDBACK_MS);
+  }, [current, speech, goNext]);
 
   if (pool.length === 0) {
     return (
@@ -79,15 +107,15 @@ function IntermediatePracticeInner() {
   return (
     <PageShell
       title="중급 연습"
-      subtitle="읽는 법을 말하거나 떠올려 보세요"
+      subtitle="타이머 동안 읽는 법을 말해 보세요"
       backHref="/intermediate"
     >
       <div className="flex flex-1 flex-col gap-5">
         <div className="flex justify-center">
           <CountdownTimer
-            key={`${current.id}-${round}`}
-            resetKey={`${current.id}-${round}`}
-            onComplete={() => setRevealed(true)}
+            key={questionKey}
+            resetKey={questionKey}
+            onComplete={finishRound}
             paused={revealed}
           />
         </div>
@@ -99,31 +127,28 @@ function IntermediatePracticeInner() {
         />
 
         {!revealed && (
-          <SpeechAnswerButton
-            expectedAnswer={current.readingKo}
-            onCorrect={() => setRevealed(true)}
+          <ListeningBadge
+            listening={speech.listening}
+            supported={speech.supported}
+            transcript={speech.transcript}
+            error={speech.error}
           />
         )}
 
-        <RevealPanel
-          title="정답"
+        <AnswerComparePanel
           visible={revealed}
-          lines={[
-            { value: current.meaningKo, large: true },
-            { label: "읽는 법:", value: current.readingKo },
-          ]}
+          heard={heard}
+          correctAnswer={current.readingKo}
+          isCorrect={isCorrect}
+          extra={{ label: "뜻:", value: current.meaningKo }}
         />
 
         <div className="mt-auto space-y-2 pt-2">
           <PrimaryButton onClick={goNext} disabled={!revealed}>
             다음 단어
           </PrimaryButton>
-          <PrimaryButton
-            variant="ghost"
-            onClick={() => setRevealed(true)}
-            disabled={revealed}
-          >
-            지금 바로 보기
+          <PrimaryButton variant="ghost" onClick={finishRound} disabled={revealed}>
+            지금 채점하기
           </PrimaryButton>
         </div>
       </div>

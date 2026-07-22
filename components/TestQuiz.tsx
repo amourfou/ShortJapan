@@ -3,12 +3,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { CountdownTimer } from "@/components/CountdownTimer";
+import { ListeningBadge } from "@/components/ListeningBadge";
 import { PageShell } from "@/components/PageShell";
 import { PracticeCard } from "@/components/PracticeCard";
 import { PrimaryButton } from "@/components/PrimaryButton";
-import { SpeechAnswerButton } from "@/components/SpeechAnswerButton";
 import { useAuth } from "@/components/AuthProvider";
+import { useAutoSpeech } from "@/hooks/useAutoSpeech";
 import { saveTestResult, type AnswerPayload } from "@/lib/db";
+import {
+  findMatchingChoice,
+  matchesSpokenAnswer,
+} from "@/lib/speechRecognition";
 import {
   TEST_QUESTION_COUNT,
   TEST_TIMER_SECONDS,
@@ -30,7 +35,9 @@ interface TestQuizProps {
   timerSeconds?: number | ((item: QuizItem) => number);
 }
 
-type Phase = "ready" | "running" | "done";
+type Phase = "ready" | "running" | "feedback" | "done";
+
+const FEEDBACK_MS = 1800;
 
 export function TestQuiz({
   level,
@@ -47,14 +54,23 @@ export function TestQuiz({
   const [index, setIndex] = useState(0);
   const [choices, setChoices] = useState<string[]>([]);
   const [answers, setAnswers] = useState<AnswerPayload[]>([]);
-  const [locked, setLocked] = useState(false);
+  const [selected, setSelected] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<"correct" | "wrong" | null>(null);
+  const [heardFinal, setHeardFinal] = useState("");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const finishingRef = useRef(false);
+  const gradingRef = useRef(false);
+  const selectedRef = useRef<string | null>(null);
+  const answersRef = useRef<AnswerPayload[]>([]);
+  const indexRef = useRef(0);
 
   const allAnswers = useMemo(() => pool.map((p) => p.answer), [pool]);
   const current = queue[index] ?? null;
+  const questionKey = current ? `${current.id}-${index}` : "none";
+
+  const speechActive = phase === "running" && !!current;
+  const speech = useAutoSpeech(speechActive, questionKey);
 
   const secondsForCurrent = useMemo(() => {
     if (!current) return TEST_TIMER_SECONDS;
@@ -63,17 +79,49 @@ export function TestQuiz({
       : timerSeconds;
   }, [current, timerSeconds]);
 
+  useEffect(() => {
+    selectedRef.current = selected;
+  }, [selected]);
+
+  useEffect(() => {
+    answersRef.current = answers;
+  }, [answers]);
+
+  useEffect(() => {
+    indexRef.current = index;
+  }, [index]);
+
+  // Auto-select matching 4-choice option from live speech
+  useEffect(() => {
+    if (phase !== "running" || !speech.transcript || choices.length === 0) return;
+    const match = findMatchingChoice(speech.transcript, choices);
+    if (match) {
+      setSelected(match);
+      selectedRef.current = match;
+    }
+  }, [speech.transcript, choices, phase]);
+
   const start = () => {
     const q = buildTestQueue(pool, wrongStats, TEST_QUESTION_COUNT);
     setQueue(q);
     setIndex(0);
+    indexRef.current = 0;
     setAnswers([]);
-    setLocked(false);
+    answersRef.current = [];
+    setSelected(null);
+    selectedRef.current = null;
     setFeedback(null);
+    setHeardFinal("");
     setSaved(false);
     finishingRef.current = false;
+    gradingRef.current = false;
     if (q[0]) {
-      setChoices(buildChoices(q[0].answer, q.map((i) => i.answer).concat(allAnswers)));
+      setChoices(
+        buildChoices(
+          q[0].answer,
+          q.map((i) => i.answer).concat(allAnswers)
+        )
+      );
     }
     setPhase("running");
   };
@@ -88,7 +136,10 @@ export function TestQuiz({
       if (!user) return;
       setSaving(true);
       const correctCount = finalAnswers.filter((a) => a.isCorrect).length;
-      const score = scoreFromResults(correctCount, finalAnswers.length || TEST_QUESTION_COUNT);
+      const score = scoreFromResults(
+        correctCount,
+        finalAnswers.length || TEST_QUESTION_COUNT
+      );
       await saveTestResult({
         userId: user.id,
         level,
@@ -104,51 +155,80 @@ export function TestQuiz({
     [user, level, settings]
   );
 
-  const advance = useCallback(
+  const goNextAfterFeedback = useCallback(
     (payload: AnswerPayload) => {
-      const nextAnswers = [...answers, payload];
-      const nextIndex = index + 1;
+      const nextAnswers = [...answersRef.current, payload];
+      answersRef.current = nextAnswers;
+      setAnswers(nextAnswers);
+
+      const nextIndex = indexRef.current + 1;
       if (nextIndex >= queue.length) {
         void finish(nextAnswers);
         return;
       }
-      setAnswers(nextAnswers);
+
       setIndex(nextIndex);
+      indexRef.current = nextIndex;
       const next = queue[nextIndex];
-      setChoices(buildChoices(next.answer, queue.map((i) => i.answer).concat(allAnswers)));
-      setLocked(false);
+      setChoices(
+        buildChoices(
+          next.answer,
+          queue.map((i) => i.answer).concat(allAnswers)
+        )
+      );
+      setSelected(null);
+      selectedRef.current = null;
       setFeedback(null);
+      setHeardFinal("");
+      gradingRef.current = false;
+      setPhase("running");
     },
-    [answers, index, queue, allAnswers, finish]
+    [queue, allAnswers, finish]
   );
 
-  const submitChoice = (choice: string) => {
-    if (!current || locked || phase !== "running") return;
-    setLocked(true);
-    const isCorrect = choice === current.answer;
+  /** Grade only when timer ends — compare speech + selected choice. */
+  const onTimerComplete = useCallback(() => {
+    if (!current || phase !== "running" || gradingRef.current) return;
+    gradingRef.current = true;
+
+    speech.stop();
+    const heard = speech.getTranscript();
+    setHeardFinal(heard);
+
+    // Prefer speech-matched choice, then manual selection
+    let chosen = selectedRef.current;
+    if (!chosen && heard) {
+      chosen = findMatchingChoice(heard, choices);
+      if (chosen) setSelected(chosen);
+    }
+
+    const isCorrect =
+      (chosen !== null && chosen === current.answer) ||
+      (!!heard && matchesSpokenAnswer(heard, current.answer));
+
+    // If speech matched answer but not a choice string, still correct
+    const selectedAnswer =
+      chosen ?? (isCorrect ? current.answer : heard || null);
+
     setFeedback(isCorrect ? "correct" : "wrong");
+    setPhase("feedback");
+
     const payload: AnswerPayload = {
       itemId: current.id,
       prompt: current.prompt,
       correctAnswer: current.answer,
-      selectedAnswer: choice,
+      selectedAnswer,
       isCorrect,
     };
-    window.setTimeout(() => advance(payload), 600);
-  };
 
-  const onTimeout = () => {
-    if (!current || locked || phase !== "running") return;
-    setLocked(true);
-    setFeedback("wrong");
-    const payload: AnswerPayload = {
-      itemId: current.id,
-      prompt: current.prompt,
-      correctAnswer: current.answer,
-      selectedAnswer: null,
-      isCorrect: false,
-    };
-    window.setTimeout(() => advance(payload), 600);
+    window.setTimeout(() => goNextAfterFeedback(payload), FEEDBACK_MS);
+  }, [current, phase, speech, choices, goNextAfterFeedback]);
+
+  /** Manual tap only selects a choice (does not skip timer). */
+  const onPickChoice = (choice: string) => {
+    if (phase !== "running") return;
+    setSelected(choice);
+    selectedRef.current = choice;
   };
 
   if (pool.length === 0) {
@@ -166,14 +246,18 @@ export function TestQuiz({
 
   if (phase === "ready") {
     return (
-      <PageShell title={title} subtitle="20문제 · 4지선다 · 말로도 답하기" backHref={backHref}>
+      <PageShell
+        title={title}
+        subtitle="20문제 · 4지선다 · 자동 음성 인식"
+        backHref={backHref}
+      >
         <div className="flex flex-1 flex-col gap-4">
           <ul className="space-y-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-4 text-sm text-slate-300">
             <li>· 문제 수: 최대 {TEST_QUESTION_COUNT}문항</li>
-            <li>· 한국어 발음 4지선다 또는 말로 답하기</li>
-            <li>· 시간 안에 못 고르면 틀린 것으로 기록</li>
+            <li>· 한국어 발음 4지선다 (탭으로 선택 가능)</li>
+            <li>· 말하면 자동으로 보기가 선택됩니다</li>
+            <li>· 타이머가 끝나면 인식 결과로 채점한 뒤 다음 문제</li>
             <li>· 자주 틀린 문제가 더 자주 나옵니다</li>
-            <li>· 결과는 DB에 저장되고 통계에 반영됩니다</li>
           </ul>
           <div className="mt-auto">
             <PrimaryButton onClick={start}>테스트 시작</PrimaryButton>
@@ -211,7 +295,9 @@ export function TestQuiz({
                     <span className="font-jp text-white">{w.prompt}</span>
                     <span className="mt-0.5 block text-xs text-slate-400">
                       정답: {w.correctAnswer}
-                      {w.selectedAnswer ? ` · 선택: ${w.selectedAnswer}` : " · 시간 초과"}
+                      {w.selectedAnswer
+                        ? ` · 인식/선택: ${w.selectedAnswer}`
+                        : " · 미응답"}
                     </span>
                   </li>
                 ))}
@@ -236,7 +322,7 @@ export function TestQuiz({
     );
   }
 
-  // running
+  // running | feedback
   return (
     <PageShell
       title={title}
@@ -246,52 +332,86 @@ export function TestQuiz({
       <div className="flex flex-1 flex-col gap-4">
         <div className="flex justify-center">
           <CountdownTimer
-            key={`${current?.id}-${index}`}
-            resetKey={`${current?.id}-${index}`}
+            key={questionKey}
+            resetKey={questionKey}
             seconds={secondsForCurrent}
-            onComplete={onTimeout}
-            paused={locked}
+            onComplete={onTimerComplete}
+            paused={phase === "feedback"}
           />
         </div>
 
         {current && (
           <PracticeCard
             prompt={current.prompt}
-            label="발음을 고르거나 말해 보세요"
+            label="발음을 말해 보세요"
             size={current.prompt.length > 6 ? "word" : "char"}
           />
         )}
 
-        {feedback && (
-          <p
-            className={`text-center text-sm font-semibold ${
-              feedback === "correct" ? "text-emerald-300" : "text-rose-300"
-            }`}
-          >
-            {feedback === "correct" ? "정답!" : `오답 · 정답: ${current?.answer}`}
-          </p>
-        )}
-
-        {current && !locked && (
-          <SpeechAnswerButton
-            expectedAnswer={current.answer}
-            disabled={locked}
-            onCorrect={() => submitChoice(current.answer)}
+        {phase === "running" && (
+          <ListeningBadge
+            listening={speech.listening}
+            supported={speech.supported}
+            transcript={speech.transcript}
+            error={speech.error}
           />
         )}
 
-        <div className="grid grid-cols-2 gap-2">
-          {choices.map((c) => (
-            <button
-              key={c}
-              type="button"
-              disabled={locked}
-              onClick={() => submitChoice(c)}
-              className="min-h-12 rounded-2xl border border-white/15 bg-white/10 px-3 py-3 text-base font-semibold text-white touch-manipulation transition hover:bg-white/15 disabled:opacity-50 sm:text-lg"
+        {phase === "feedback" && (
+          <div className="space-y-2 text-center">
+            <p
+              className={`text-sm font-bold ${
+                feedback === "correct" ? "text-emerald-300" : "text-rose-300"
+              }`}
             >
-              {c}
-            </button>
-          ))}
+              {feedback === "correct" ? "정답!" : "오답"}
+            </p>
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              <div className="rounded-xl bg-black/25 px-2 py-2">
+                <p className="text-[10px] text-slate-400">인식</p>
+                <p className="font-semibold text-white">
+                  {heardFinal || selected || "—"}
+                </p>
+              </div>
+              <div className="rounded-xl bg-black/25 px-2 py-2">
+                <p className="text-[10px] text-slate-400">정답</p>
+                <p className="font-semibold text-emerald-200">
+                  {current?.answer}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="grid grid-cols-2 gap-2">
+          {choices.map((c) => {
+            const isSelected = selected === c;
+            const showCorrect =
+              phase === "feedback" && c === current?.answer;
+            const showWrong =
+              phase === "feedback" && isSelected && c !== current?.answer;
+            return (
+              <button
+                key={c}
+                type="button"
+                disabled={phase === "feedback"}
+                onClick={() => onPickChoice(c)}
+                className={[
+                  "min-h-12 rounded-2xl border px-3 py-3 text-base font-semibold touch-manipulation transition sm:text-lg",
+                  showCorrect
+                    ? "border-emerald-400/60 bg-emerald-500/25 text-white"
+                    : showWrong
+                      ? "border-rose-400/60 bg-rose-500/25 text-white"
+                      : isSelected
+                        ? "border-sky-400/70 bg-sky-500/30 text-white ring-2 ring-sky-400/50"
+                        : "border-white/15 bg-white/10 text-white hover:bg-white/15",
+                  phase === "feedback" ? "opacity-90" : "",
+                ].join(" ")}
+              >
+                {c}
+              </button>
+            );
+          })}
         </div>
       </div>
     </PageShell>

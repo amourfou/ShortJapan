@@ -1,6 +1,4 @@
-/** Browser speech-to-text for Korean answer input. */
-
-export type SpeechRecStatus = "idle" | "listening" | "unsupported" | "error";
+/** Browser speech-to-text for Korean answer input (auto continuous). */
 
 type SpeechRecognitionLike = {
   lang: string;
@@ -16,7 +14,10 @@ type SpeechRecognitionLike = {
 };
 
 type SpeechRecognitionEventLike = {
-  results: ArrayLike<ArrayLike<{ transcript: string }> & { isFinal?: boolean }>;
+  resultIndex: number;
+  results: ArrayLike<
+    ArrayLike<{ transcript: string }> & { isFinal?: boolean; length: number }
+  > & { length: number };
 };
 
 function getRecognitionCtor(): (new () => SpeechRecognitionLike) | null {
@@ -43,18 +44,15 @@ export function normalizeAnswer(text: string): string {
 
 /**
  * True if spoken text matches expected Korean reading.
- * Allows includes match for longer sentences.
  */
 export function matchesSpokenAnswer(spoken: string, expected: string): boolean {
   const h = normalizeAnswer(spoken);
   const e = normalizeAnswer(expected);
   if (!h || !e) return false;
   if (h === e) return true;
-  // spoken contains full answer or vice versa (short answers)
   if (h.includes(e) || (e.length >= 2 && e.includes(h) && h.length >= Math.min(2, e.length))) {
     return true;
   }
-  // multi-word expected: all significant chunks present
   const chunks = expected
     .split(/[\s·、,]+/)
     .map(normalizeAnswer)
@@ -65,88 +63,137 @@ export function matchesSpokenAnswer(spoken: string, expected: string): boolean {
   return false;
 }
 
-export interface ListenResult {
-  ok: boolean;
-  transcript: string;
-  error?: string;
-}
+/** Pick the choice option that best matches spoken text. */
+export function findMatchingChoice(spoken: string, choices: string[]): string | null {
+  if (!spoken.trim() || choices.length === 0) return null;
 
-/**
- * Listen once for Korean speech. Must be triggered from a user gesture on mobile.
- */
-export function listenOnceKorean(timeoutMs = 8000): Promise<ListenResult> {
-  const Ctor = getRecognitionCtor();
-  if (!Ctor) {
-    return Promise.resolve({
-      ok: false,
-      transcript: "",
-      error: "unsupported",
-    });
+  for (const c of choices) {
+    if (matchesSpokenAnswer(spoken, c)) return c;
   }
 
-  return new Promise((resolve) => {
-    let settled = false;
-    const rec = new Ctor();
-    rec.lang = "ko-KR";
-    rec.continuous = false;
-    rec.interimResults = false;
-    rec.maxAlternatives = 3;
+  const h = normalizeAnswer(spoken);
+  let best: string | null = null;
+  let bestLen = 0;
+  for (const c of choices) {
+    const e = normalizeAnswer(c);
+    if (!e) continue;
+    if ((h.includes(e) || e.includes(h)) && e.length > bestLen) {
+      best = c;
+      bestLen = e.length;
+    }
+  }
+  return best;
+}
 
-    const finish = (result: ListenResult) => {
-      if (settled) return;
-      settled = true;
-      window.clearTimeout(timer);
-      try {
-        rec.onresult = null;
-        rec.onerror = null;
-        rec.onend = null;
-        rec.abort();
-      } catch {
-        /* ignore */
+export type SpeechSession = {
+  stop: () => void;
+  getTranscript: () => string;
+};
+
+/**
+ * Start continuous Korean recognition. Restarts on end until stop().
+ * Calls onTranscript on every update (interim + final).
+ */
+export function startContinuousKorean(handlers: {
+  onTranscript: (text: string, isFinal: boolean) => void;
+  onListeningChange?: (listening: boolean) => void;
+  onError?: (error: string) => void;
+}): SpeechSession | null {
+  const Ctor = getRecognitionCtor();
+  if (!Ctor) {
+    handlers.onError?.("unsupported");
+    return null;
+  }
+
+  let stopped = false;
+  let rec: SpeechRecognitionLike | null = null;
+  let finalParts: string[] = [];
+  let interim = "";
+
+  const emit = (isFinal: boolean) => {
+    const text = [...finalParts, interim].filter(Boolean).join(" ").trim();
+    handlers.onTranscript(text, isFinal);
+  };
+
+  const create = () => {
+    if (stopped) return;
+    const r = new Ctor();
+    rec = r;
+    r.lang = "ko-KR";
+    r.continuous = true;
+    r.interimResults = true;
+    r.maxAlternatives = 1;
+
+    r.onresult = (ev) => {
+      interim = "";
+      for (let i = ev.resultIndex; i < ev.results.length; i++) {
+        const row = ev.results[i];
+        const t = row?.[0]?.transcript?.trim() ?? "";
+        if (!t) continue;
+        if (row.isFinal) {
+          finalParts.push(t);
+          interim = "";
+        } else {
+          interim = t;
+        }
       }
-      resolve(result);
+      emit(true);
     };
 
-    const timer = window.setTimeout(() => {
-      try {
-        rec.stop();
-      } catch {
-        /* ignore */
+    r.onerror = (ev) => {
+      // ignore no-speech / aborted during continuous mode
+      if (ev.error === "aborted" || ev.error === "no-speech") return;
+      if (ev.error === "not-allowed") {
+        handlers.onError?.(ev.error);
+        stopped = true;
+        handlers.onListeningChange?.(false);
       }
-      finish({ ok: false, transcript: "", error: "timeout" });
-    }, timeoutMs);
-
-    rec.onresult = (ev) => {
-      const parts: string[] = [];
-      for (let i = 0; i < ev.results.length; i++) {
-        const alt = ev.results[i]?.[0]?.transcript;
-        if (alt) parts.push(alt);
-      }
-      const transcript = parts.join(" ").trim();
-      finish({ ok: true, transcript });
     };
 
-    rec.onerror = (ev) => {
-      finish({
-        ok: false,
-        transcript: "",
-        error: ev.error || "error",
-      });
-    };
-
-    rec.onend = () => {
-      // If ended without result
-      finish({ ok: false, transcript: "", error: "no-speech" });
+    r.onend = () => {
+      if (stopped) {
+        handlers.onListeningChange?.(false);
+        return;
+      }
+      // Chrome often stops after a pause — restart
+      window.setTimeout(() => {
+        if (stopped) return;
+        try {
+          create();
+          rec?.start();
+          handlers.onListeningChange?.(true);
+        } catch {
+          handlers.onListeningChange?.(false);
+        }
+      }, 120);
     };
 
     try {
-      rec.start();
-    } catch (e) {
-      finish({
-        ok: false,
-        transcript: "",
-        error: e instanceof Error ? e.message : "start-failed",
-      });
+      r.start();
+      handlers.onListeningChange?.(true);
+    } catch {
+      handlers.onListeningChange?.(false);
+      handlers.onError?.("start-failed");
     }
-  });
+  };
+
+  create();
+
+  return {
+    getTranscript: () => [...finalParts, interim].filter(Boolean).join(" ").trim(),
+    stop: () => {
+      stopped = true;
+      try {
+        if (rec) {
+          rec.onresult = null;
+          rec.onerror = null;
+          rec.onend = null;
+          rec.abort();
+        }
+      } catch {
+        /* ignore */
+      }
+      handlers.onListeningChange?.(false);
+    },
+  };
 }

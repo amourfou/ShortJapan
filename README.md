@@ -42,21 +42,32 @@ pnpm dev
 
 ## Git
 
+nextLotto와 **동일한 GitHub 계정**을 사용합니다.
+
+| 항목 | 값 |
+|------|-----|
+| GitHub 계정 | `amourfou` |
+| Git user | `amourfou` / `amour_fou@hanmail.net` |
+| 원격 저장소 (권장) | `https://github.com/amourfou/ShortJapan.git` |
+| 기본 브랜치 | `main` |
+| Vercel 팀 (참고) | `amourfous-projects` (예: haan-river 등) |
+
+로컬 커밋은 이미 되어 있습니다. GitHub에서 빈 저장소 `ShortJapan` 생성 후:
+
 ```bash
-git init
-git add .
-git commit -m "Initial commit: ShortJapan beginner + intermediate"
-# GitHub에서 빈 저장소 생성 후
-git remote add origin https://github.com/<user>/ShortJapan.git
-git branch -M main
+git remote add origin https://github.com/amourfou/ShortJapan.git
 git push -u origin main
 ```
 
+참고 프로젝트 remote: `https://github.com/amourfou/next-lotto.git`
+
 ## Vercel 배포
 
+nextLotto와 같이 Vercel에 연결합니다.
+
 1. [Vercel](https://vercel.com) → Import Git Repository
-2. Framework Preset: **Next.js**
-3. Build Command: `pnpm build` (기본값으로 충분)
-4. 환경 변수: 없음
+2. `amourfou/ShortJapan` 선택
+3. Framework Preset: **Next.js**, Build: `pnpm build`
+4. 환경 변수: **없음** (DB/API 미사용)
 
 배포 후 제공 URL로 핸드폰에서 확인하면 됩니다.

@@ -70,4 +70,8 @@ nextLotto와 같이 Vercel에 연결합니다.
 3. Framework Preset: **Next.js**, Build: `pnpm build`
 4. 환경 변수: **없음** (DB/API 미사용)
 
-배포 후 제공 URL로 핸드폰에서 확인하면 됩니다.
+### 배포 URL
+
+**https://short-japan.vercel.app/**
+
+`main` 브랜치에 push하면 Vercel이 자동으로 다시 빌드·배포합니다.

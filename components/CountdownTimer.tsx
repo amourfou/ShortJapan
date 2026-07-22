@@ -8,51 +8,67 @@ interface CountdownTimerProps {
   resetKey: string | number;
   seconds?: number;
   onComplete: () => void;
+  /** Stop ticking (e.g. answer already revealed). Does not reset the clock. */
   paused?: boolean;
 }
 
+/**
+ * Full duration wall-clock countdown.
+ * Shows 5 for the first second, then 4…1, then 0 and fires onComplete once.
+ */
 export function CountdownTimer({
   resetKey,
   seconds = TIMER_SECONDS,
   onComplete,
   paused = false,
 }: CountdownTimerProps) {
-  const [remaining, setRemaining] = useState(seconds);
+  const totalMs = seconds * 1000;
+  const [remainingMs, setRemainingMs] = useState(totalMs);
   const onCompleteRef = useRef(onComplete);
   onCompleteRef.current = onComplete;
-  /** Only fire onComplete after a real tick down to 0, never on reset. */
-  const armedRef = useRef(false);
 
-  useEffect(() => {
-    setRemaining(seconds);
-    armedRef.current = true;
-  }, [resetKey, seconds]);
+  const startedAtRef = useRef<number | null>(null);
+  const completedRef = useRef(false);
+  const pausedRef = useRef(paused);
+  pausedRef.current = paused;
 
+  // New question → hard reset clock
   useEffect(() => {
-    if (paused || remaining <= 0) return;
+    completedRef.current = false;
+    startedAtRef.current = Date.now();
+    setRemainingMs(totalMs);
+  }, [resetKey, seconds, totalMs]);
+
+  // Tick until complete; pause only freezes updates (no reset)
+  useEffect(() => {
+    if (paused) return;
 
     const id = window.setInterval(() => {
-      setRemaining((prev) => {
-        if (prev <= 1) {
-          if (armedRef.current) {
-            armedRef.current = false;
-            // Defer so we don't call parent setState inside this updater.
-            queueMicrotask(() => onCompleteRef.current());
-          }
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
+      if (completedRef.current) return;
+      if (pausedRef.current) return;
+
+      const startedAt = startedAtRef.current ?? Date.now();
+      const elapsed = Date.now() - startedAt;
+      const left = Math.max(0, totalMs - elapsed);
+      setRemainingMs(left);
+
+      if (left <= 0) {
+        completedRef.current = true;
+        onCompleteRef.current();
+      }
+    }, 50);
 
     return () => window.clearInterval(id);
-  }, [resetKey, paused, remaining > 0]);
+  }, [resetKey, seconds, totalMs, paused]);
 
-  const progress = remaining / seconds;
+  // Whole seconds on the face: 5 during [5s, 4s), …, 1 during [1s, 0), then 0
+  const remainingSec =
+    remainingMs <= 0 ? 0 : Math.ceil(remainingMs / 1000);
+  const progress = Math.min(1, Math.max(0, remainingMs / totalMs));
   const radius = 36;
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference * (1 - progress);
-  const urgent = remaining <= 2 && remaining > 0;
+  const urgent = remainingSec <= 2 && remainingSec > 0;
 
   return (
     <div className="flex flex-col items-center gap-1" aria-live="polite">
@@ -76,26 +92,25 @@ export function CountdownTimer({
             strokeLinecap="round"
             strokeDasharray={circumference}
             strokeDashoffset={strokeDashoffset}
-            className="transition-[stroke-dashoffset] duration-1000 linear"
           />
         </svg>
         <div className="absolute inset-0 flex items-center justify-center">
           <span
             className={[
               "text-2xl font-bold tabular-nums",
-              remaining === 0
+              remainingSec === 0
                 ? "text-emerald-300"
                 : urgent
                   ? "text-pink-300 animate-pulse-soft"
                   : "text-white",
             ].join(" ")}
           >
-            {remaining}
+            {remainingSec}
           </span>
         </div>
       </div>
       <p className="text-xs text-slate-400">
-        {remaining > 0 ? "속으로 맞춰 보세요" : "정답 공개!"}
+        {remainingSec > 0 ? "속으로 맞춰 보세요" : "정답 공개!"}
       </p>
     </div>
   );

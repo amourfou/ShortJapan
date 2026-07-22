@@ -8,6 +8,7 @@ import { PageShell } from "@/components/PageShell";
 import { PracticeCard } from "@/components/PracticeCard";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { RevealPanel } from "@/components/RevealPanel";
+import { SpeechAnswerButton } from "@/components/SpeechAnswerButton";
 import { allCategoryIds, getCategoryLabel } from "@/lib/data/categories";
 import {
   allRowIds,
@@ -78,7 +79,7 @@ function IntermediatePracticeInner() {
   return (
     <PageShell
       title="중급 연습"
-      subtitle="단어의 뜻과 읽는 법을 떠올려 보세요"
+      subtitle="읽는 법을 말하거나 떠올려 보세요"
       backHref="/intermediate"
     >
       <div className="flex flex-1 flex-col gap-5">
@@ -96,6 +97,13 @@ function IntermediatePracticeInner() {
           label={getCategoryLabel(current.categoryId)}
           size="word"
         />
+
+        {!revealed && (
+          <SpeechAnswerButton
+            expectedAnswer={current.readingKo}
+            onCorrect={() => setRevealed(true)}
+          />
+        )}
 
         <RevealPanel
           title="정답"

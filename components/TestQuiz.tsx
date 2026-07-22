@@ -6,6 +6,7 @@ import { CountdownTimer } from "@/components/CountdownTimer";
 import { PageShell } from "@/components/PageShell";
 import { PracticeCard } from "@/components/PracticeCard";
 import { PrimaryButton } from "@/components/PrimaryButton";
+import { SpeechAnswerButton } from "@/components/SpeechAnswerButton";
 import { useAuth } from "@/components/AuthProvider";
 import { saveTestResult, type AnswerPayload } from "@/lib/db";
 import {
@@ -165,11 +166,11 @@ export function TestQuiz({
 
   if (phase === "ready") {
     return (
-      <PageShell title={title} subtitle="20문제 · 5지선다 · 시간 초과 시 오답" backHref={backHref}>
+      <PageShell title={title} subtitle="20문제 · 4지선다 · 말로도 답하기" backHref={backHref}>
         <div className="flex flex-1 flex-col gap-4">
           <ul className="space-y-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-4 text-sm text-slate-300">
-            <li>· 문제 수: 최대 {TEST_QUESTION_COUNT}문항 (풀이 가능한 만큼)</li>
-            <li>· 한국어 발음 5지선다</li>
+            <li>· 문제 수: 최대 {TEST_QUESTION_COUNT}문항</li>
+            <li>· 한국어 발음 4지선다 또는 말로 답하기</li>
             <li>· 시간 안에 못 고르면 틀린 것으로 기록</li>
             <li>· 자주 틀린 문제가 더 자주 나옵니다</li>
             <li>· 결과는 DB에 저장되고 통계에 반영됩니다</li>
@@ -256,7 +257,7 @@ export function TestQuiz({
         {current && (
           <PracticeCard
             prompt={current.prompt}
-            label="발음을 고르세요"
+            label="발음을 고르거나 말해 보세요"
             size={current.prompt.length > 6 ? "word" : "char"}
           />
         )}
@@ -271,14 +272,22 @@ export function TestQuiz({
           </p>
         )}
 
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        {current && !locked && (
+          <SpeechAnswerButton
+            expectedAnswer={current.answer}
+            disabled={locked}
+            onCorrect={() => submitChoice(current.answer)}
+          />
+        )}
+
+        <div className="grid grid-cols-2 gap-2">
           {choices.map((c) => (
             <button
               key={c}
               type="button"
               disabled={locked}
               onClick={() => submitChoice(c)}
-              className="min-h-12 rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-lg font-semibold text-white touch-manipulation transition hover:bg-white/15 disabled:opacity-50"
+              className="min-h-12 rounded-2xl border border-white/15 bg-white/10 px-3 py-3 text-base font-semibold text-white touch-manipulation transition hover:bg-white/15 disabled:opacity-50 sm:text-lg"
             >
               {c}
             </button>

@@ -9,6 +9,7 @@ import { PracticeCard } from "@/components/PracticeCard";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { RevealPanel } from "@/components/RevealPanel";
 import { SpeakButton } from "@/components/SpeakButton";
+import { SpeechAnswerButton } from "@/components/SpeechAnswerButton";
 import { allCategoryIds, getCategoryLabel } from "@/lib/data/categories";
 import {
   filterSentences,
@@ -97,7 +98,7 @@ function AdvancedPracticeInner() {
   return (
     <PageShell
       title="고급 연습"
-      subtitle={`문장 길이에 따라 ${timerSec}초 · 정답과 함께 음성이 나와요`}
+      subtitle={`문장 길이에 따라 ${timerSec}초 · 말로 답하거나 떠올려 보세요`}
       backHref="/advanced"
     >
       <div className="flex flex-1 flex-col gap-5">
@@ -117,6 +118,14 @@ function AdvancedPracticeInner() {
           size="word"
         />
 
+        {!revealed && (
+          <SpeechAnswerButton
+            expectedAnswer={current.readingKo}
+            onCorrect={revealAnswer}
+            label="읽는 법 말하기"
+          />
+        )}
+
         <RevealPanel
           title="정답"
           visible={revealed}
@@ -127,7 +136,7 @@ function AdvancedPracticeInner() {
         />
 
         {revealed && (
-          <SpeakButton text={current.sentence} label="다시 듣기" />
+          <SpeakButton text={current.sentence} label="일본어 다시 듣기" />
         )}
 
         <div className="mt-auto space-y-2 pt-2">

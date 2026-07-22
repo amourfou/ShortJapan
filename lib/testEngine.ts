@@ -3,7 +3,7 @@ import type { WrongStatRow } from "@/lib/supabase";
 
 export const TEST_QUESTION_COUNT = 20;
 export const TEST_TIMER_SECONDS = 5;
-export const CHOICE_COUNT = 5;
+export const CHOICE_COUNT = 4;
 
 export interface QuizItem {
   id: string;
@@ -67,7 +67,7 @@ export function buildTestQueue(
   return selected;
 }
 
-/** Build 5 choices: correct + random wrong answers from pool. */
+/** Build 4 choices: correct + random wrong answers from pool. */
 export function buildChoices(
   correct: string,
   poolAnswers: string[],

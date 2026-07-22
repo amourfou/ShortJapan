@@ -8,6 +8,7 @@ import { PageShell } from "@/components/PageShell";
 import { PracticeCard } from "@/components/PracticeCard";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { RevealPanel } from "@/components/RevealPanel";
+import { SpeechAnswerButton } from "@/components/SpeechAnswerButton";
 import {
   collectChars,
   getRows,
@@ -77,7 +78,7 @@ function BeginnerPracticeInner() {
   return (
     <PageShell
       title="초급 연습"
-      subtitle={`${scriptLabel} · 발음을 떠올려 보세요`}
+      subtitle={`${scriptLabel} · 발음을 말하거나 떠올려 보세요`}
       backHref="/beginner"
     >
       <div className="flex flex-1 flex-col gap-5">
@@ -91,6 +92,13 @@ function BeginnerPracticeInner() {
         </div>
 
         <PracticeCard prompt={current.char} label={scriptLabel} size="char" />
+
+        {!revealed && (
+          <SpeechAnswerButton
+            expectedAnswer={current.readingKo}
+            onCorrect={() => setRevealed(true)}
+          />
+        )}
 
         <RevealPanel
           title="한국어 발음"

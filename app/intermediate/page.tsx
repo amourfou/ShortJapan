@@ -132,7 +132,7 @@ export default function IntermediateSetupPage() {
             onClick={() => void go("test")}
             disabled={!canStart}
           >
-            테스트 (20문제 · 5지선다)
+            테스트 (20문제 · 4지선다)
           </PrimaryButton>
         </div>
       </div>

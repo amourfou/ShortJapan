@@ -3,11 +3,17 @@ import { HIRAGANA_ROWS } from "@/lib/data/hiragana";
 import { KATAKANA_ROWS } from "@/lib/data/katakana";
 import { INTERMEDIATE_WORDS } from "@/lib/data/words";
 import { ADVANCED_SENTENCES } from "@/lib/data/sentences";
+import { wordMatchesRows } from "@/lib/kanaFilter";
 
 export const TIMER_SECONDS = 5;
 
 export function getRows(script: ScriptType): KanaRow[] {
   return script === "hiragana" ? HIRAGANA_ROWS : KATAKANA_ROWS;
+}
+
+/** Shared 음차 rows for intermediate filter UI (ids match hira/kata). */
+export function getSoundRows(): KanaRow[] {
+  return HIRAGANA_ROWS;
 }
 
 export function collectChars(rows: KanaRow[], selectedRowIds: string[]): KanaChar[] {
@@ -24,8 +30,16 @@ export function filterByCategories<T extends { categoryId: string }>(
   return items.filter((item) => set.has(item.categoryId));
 }
 
-export function filterWords(categoryIds: string[]): WordItem[] {
-  return filterByCategories(INTERMEDIATE_WORDS, categoryIds);
+/**
+ * Intermediate words: must be in selected situation categories AND
+ * use only kana from selected 음차 rows (both hiragana & katakana of those rows).
+ */
+export function filterWords(categoryIds: string[], rowIds?: string[]): WordItem[] {
+  let words = filterByCategories(INTERMEDIATE_WORDS, categoryIds);
+  if (rowIds && rowIds.length > 0) {
+    words = words.filter((w) => wordMatchesRows(w.word, rowIds));
+  }
+  return words;
 }
 
 export function filterSentences(categoryIds: string[]): SentenceItem[] {

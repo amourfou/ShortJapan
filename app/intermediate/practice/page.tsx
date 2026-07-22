@@ -10,7 +10,9 @@ import { PrimaryButton } from "@/components/PrimaryButton";
 import { RevealPanel } from "@/components/RevealPanel";
 import { allCategoryIds, getCategoryLabel } from "@/lib/data/categories";
 import {
+  allRowIds,
   filterWords,
+  getSoundRows,
   parseCategoryParam,
   pickRandomWord,
 } from "@/lib/practice";
@@ -19,12 +21,15 @@ import type { WordItem } from "@/lib/types";
 function IntermediatePracticeInner() {
   const searchParams = useSearchParams();
   const catParam = searchParams.get("cats");
+  const rowParam = searchParams.get("rows");
 
   const pool = useMemo(() => {
-    const ids = parseCategoryParam(catParam);
-    const selected = ids.length > 0 ? ids : allCategoryIds();
-    return filterWords(selected);
-  }, [catParam]);
+    const cats = parseCategoryParam(catParam);
+    const rows = parseCategoryParam(rowParam);
+    const selectedCats = cats.length > 0 ? cats : allCategoryIds();
+    const selectedRows = rows.length > 0 ? rows : allRowIds(getSoundRows());
+    return filterWords(selectedCats, selectedRows);
+  }, [catParam, rowParam]);
 
   const [current, setCurrent] = useState<WordItem | null>(null);
   const [revealed, setRevealed] = useState(false);
@@ -51,7 +56,9 @@ function IntermediatePracticeInner() {
     return (
       <PageShell title="중급 연습" backHref="/intermediate">
         <div className="flex flex-1 flex-col items-center justify-center gap-4 text-center">
-          <p className="text-slate-300">선택된 카테고리에 단어가 없어요.</p>
+          <p className="text-slate-300">
+            선택한 상황·음차 조건에 맞는 단어가 없어요.
+          </p>
           <Link href="/intermediate" className="text-sky-300 underline">
             설정으로 돌아가기
           </Link>

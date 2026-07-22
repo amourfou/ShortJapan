@@ -10,23 +10,23 @@ import { PrimaryButton } from "@/components/PrimaryButton";
 import { RevealPanel } from "@/components/RevealPanel";
 import { allCategoryIds, getCategoryLabel } from "@/lib/data/categories";
 import {
-  filterWords,
+  filterSentences,
   parseCategoryParam,
-  pickRandomWord,
+  pickRandomSentence,
 } from "@/lib/practice";
-import type { WordItem } from "@/lib/types";
+import type { SentenceItem } from "@/lib/types";
 
-function IntermediatePracticeInner() {
+function AdvancedPracticeInner() {
   const searchParams = useSearchParams();
   const catParam = searchParams.get("cats");
 
   const pool = useMemo(() => {
     const ids = parseCategoryParam(catParam);
     const selected = ids.length > 0 ? ids : allCategoryIds();
-    return filterWords(selected);
+    return filterSentences(selected);
   }, [catParam]);
 
-  const [current, setCurrent] = useState<WordItem | null>(null);
+  const [current, setCurrent] = useState<SentenceItem | null>(null);
   const [revealed, setRevealed] = useState(false);
   const [round, setRound] = useState(0);
 
@@ -35,24 +35,24 @@ function IntermediatePracticeInner() {
       setCurrent(null);
       return;
     }
-    setCurrent(pickRandomWord(pool, null));
+    setCurrent(pickRandomSentence(pool, null));
     setRevealed(false);
     setRound(0);
   }, [pool]);
 
   const goNext = useCallback(() => {
     if (pool.length === 0) return;
-    setCurrent((prev) => pickRandomWord(pool, prev));
+    setCurrent((prev) => pickRandomSentence(pool, prev));
     setRevealed(false);
     setRound((r) => r + 1);
   }, [pool]);
 
   if (pool.length === 0) {
     return (
-      <PageShell title="중급 연습" backHref="/intermediate">
+      <PageShell title="고급 연습" backHref="/advanced">
         <div className="flex flex-1 flex-col items-center justify-center gap-4 text-center">
-          <p className="text-slate-300">선택된 카테고리에 단어가 없어요.</p>
-          <Link href="/intermediate" className="text-sky-300 underline">
+          <p className="text-slate-300">선택된 카테고리에 문장이 없어요.</p>
+          <Link href="/advanced" className="text-sky-300 underline">
             설정으로 돌아가기
           </Link>
         </div>
@@ -62,7 +62,7 @@ function IntermediatePracticeInner() {
 
   if (!current) {
     return (
-      <PageShell title="중급 연습" backHref="/intermediate">
+      <PageShell title="고급 연습" backHref="/advanced">
         <p className="text-center text-slate-300">준비 중…</p>
       </PageShell>
     );
@@ -70,9 +70,9 @@ function IntermediatePracticeInner() {
 
   return (
     <PageShell
-      title="중급 연습"
-      subtitle="단어의 뜻과 읽는 법을 떠올려 보세요"
-      backHref="/intermediate"
+      title="고급 연습"
+      subtitle="문장의 뜻과 읽는 법을 떠올려 보세요"
+      backHref="/advanced"
     >
       <div className="flex flex-1 flex-col gap-5">
         <div className="flex justify-center">
@@ -85,7 +85,7 @@ function IntermediatePracticeInner() {
         </div>
 
         <PracticeCard
-          prompt={current.word}
+          prompt={current.sentence}
           label={getCategoryLabel(current.categoryId)}
           size="word"
         />
@@ -101,7 +101,7 @@ function IntermediatePracticeInner() {
 
         <div className="mt-auto space-y-2 pt-2">
           <PrimaryButton onClick={goNext} disabled={!revealed}>
-            다음 단어
+            다음 문장
           </PrimaryButton>
           <PrimaryButton
             variant="ghost"
@@ -116,16 +116,16 @@ function IntermediatePracticeInner() {
   );
 }
 
-export default function IntermediatePracticePage() {
+export default function AdvancedPracticePage() {
   return (
     <Suspense
       fallback={
-        <PageShell title="중급 연습" backHref="/intermediate">
+        <PageShell title="고급 연습" backHref="/advanced">
           <p className="text-center text-slate-300">불러오는 중…</p>
         </PageShell>
       }
     >
-      <IntermediatePracticeInner />
+      <AdvancedPracticeInner />
     </Suspense>
   );
 }

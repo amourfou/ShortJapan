@@ -1,6 +1,8 @@
-import type { KanaChar, KanaRow, ScriptType, WordItem } from "@/lib/types";
+import type { KanaChar, KanaRow, ScriptType, SentenceItem, WordItem } from "@/lib/types";
 import { HIRAGANA_ROWS } from "@/lib/data/hiragana";
 import { KATAKANA_ROWS } from "@/lib/data/katakana";
+import { INTERMEDIATE_WORDS } from "@/lib/data/words";
+import { ADVANCED_SENTENCES } from "@/lib/data/sentences";
 
 export const TIMER_SECONDS = 5;
 
@@ -11,6 +13,23 @@ export function getRows(script: ScriptType): KanaRow[] {
 export function collectChars(rows: KanaRow[], selectedRowIds: string[]): KanaChar[] {
   const idSet = new Set(selectedRowIds);
   return rows.filter((row) => idSet.has(row.id)).flatMap((row) => row.chars);
+}
+
+export function filterByCategories<T extends { categoryId: string }>(
+  items: T[],
+  categoryIds: string[]
+): T[] {
+  if (categoryIds.length === 0) return [];
+  const set = new Set(categoryIds);
+  return items.filter((item) => set.has(item.categoryId));
+}
+
+export function filterWords(categoryIds: string[]): WordItem[] {
+  return filterByCategories(INTERMEDIATE_WORDS, categoryIds);
+}
+
+export function filterSentences(categoryIds: string[]): SentenceItem[] {
+  return filterByCategories(ADVANCED_SENTENCES, categoryIds);
 }
 
 /** Pick a random item, avoiding immediate repeat when pool has 2+ items. */
@@ -37,6 +56,18 @@ export function pickRandomWord(pool: WordItem[], previous: WordItem | null): Wor
   return pickRandomAvoiding(pool, previous, (w) => w.id);
 }
 
+export function pickRandomSentence(pool: SentenceItem[], previous: SentenceItem | null): SentenceItem {
+  return pickRandomAvoiding(pool, previous, (s) => s.id);
+}
+
 export function allRowIds(rows: KanaRow[]): string[] {
   return rows.map((row) => row.id);
+}
+
+export function parseCategoryParam(param: string | null): string[] {
+  if (!param) return [];
+  return param
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
 }

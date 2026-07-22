@@ -9,42 +9,42 @@ import {
   SITUATION_CATEGORIES,
   allCategoryIds,
 } from "@/lib/data/categories";
-import { INTERMEDIATE_WORDS } from "@/lib/data/words";
-import { filterWords } from "@/lib/practice";
+import { ADVANCED_SENTENCES } from "@/lib/data/sentences";
+import { filterSentences } from "@/lib/practice";
 
-export default function IntermediateSetupPage() {
+export default function AdvancedSetupPage() {
   const router = useRouter();
   const [selectedIds, setSelectedIds] = useState<string[]>(() => allCategoryIds());
 
   const counts = useMemo(() => {
     const map: Record<string, number> = {};
     for (const cat of SITUATION_CATEGORIES) {
-      map[cat.id] = INTERMEDIATE_WORDS.filter((w) => w.categoryId === cat.id).length;
+      map[cat.id] = ADVANCED_SENTENCES.filter((s) => s.categoryId === cat.id).length;
     }
     return map;
   }, []);
 
-  const wordCount = filterWords(selectedIds).length;
-  const canStart = wordCount > 0;
+  const sentenceCount = filterSentences(selectedIds).length;
+  const canStart = sentenceCount > 0;
 
   const start = () => {
     if (!canStart) return;
     const params = new URLSearchParams({
       cats: selectedIds.join(","),
     });
-    router.push(`/intermediate/practice?${params.toString()}`);
+    router.push(`/advanced/practice?${params.toString()}`);
   };
 
   return (
     <PageShell
-      title="중급 설정"
-      subtitle="일본에서 바로 쓸 수 있는 상황별 단어를 골라 연습해요"
+      title="고급 설정"
+      subtitle="여행·일상에서 바로 쓸 수 있는 상황별 문장 연습"
       backHref="/"
     >
       <div className="flex flex-1 flex-col gap-6">
         <p className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-300">
-          식당, 교통, 쇼핑처럼 <strong className="text-white">실제 상황</strong>을
-          고르면 그 카테고리 단어만 나와요.
+          중급과 같은 상황 분류예요. 문장을 보고 5초 안에{" "}
+          <strong className="text-white">뜻과 읽는 법</strong>을 떠올려 보세요.
         </p>
 
         <section className="flex-1">
@@ -58,7 +58,8 @@ export default function IntermediateSetupPage() {
 
         <div className="sticky bottom-0 space-y-2 border-t border-white/10 bg-slate-950/80 py-4 backdrop-blur-md">
           <p className="text-center text-sm text-slate-300">
-            선택 단어 <span className="font-semibold text-white">{wordCount}</span>개 ·
+            선택 문장{" "}
+            <span className="font-semibold text-white">{sentenceCount}</span>개 ·
             5초 타이머
           </p>
           <PrimaryButton onClick={start} disabled={!canStart}>

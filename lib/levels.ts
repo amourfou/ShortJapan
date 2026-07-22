@@ -12,7 +12,7 @@ export const LEVELS: LevelInfo[] = [
   {
     id: "intermediate",
     title: "중급",
-    description: "단어 읽고 뜻 맞추기",
+    description: "상황별 단어 · 실제 일본에서 쓰기",
     href: "/intermediate",
     available: true,
     accent: "from-violet-400 to-purple-500",
@@ -20,8 +20,9 @@ export const LEVELS: LevelInfo[] = [
   {
     id: "advanced",
     title: "고급",
-    description: "문장 읽기 (준비중)",
-    available: false,
+    description: "상황별 문장 · 여행·일상 회화",
+    href: "/advanced",
+    available: true,
     accent: "from-amber-400 to-orange-500",
   },
   {

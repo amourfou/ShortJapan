@@ -16,10 +16,10 @@ export function PracticeCard({ prompt, label, size = "char" }: PracticeCardProps
       )}
       <p
         className={[
-          "font-jp select-none font-bold leading-none text-white",
+          "font-jp select-none font-bold text-white",
           size === "char"
-            ? "text-[5.5rem] sm:text-[7rem] md:text-[8rem]"
-            : "text-4xl sm:text-5xl md:text-6xl text-center break-keep",
+            ? "text-[5.5rem] leading-none sm:text-[7rem] md:text-[8rem]"
+            : "text-2xl leading-snug sm:text-3xl md:text-4xl text-center break-keep px-1",
         ].join(" ")}
       >
         {prompt}

@@ -19,7 +19,16 @@ export interface WordItem {
   readingKo: string;
   meaningKo: string;
   script: ScriptType;
-  category?: string;
+  /** Situation category id (see SITUATION_CATEGORIES). */
+  categoryId: string;
+}
+
+export interface SentenceItem {
+  id: string;
+  sentence: string;
+  readingKo: string;
+  meaningKo: string;
+  categoryId: string;
 }
 
 export interface LevelInfo {

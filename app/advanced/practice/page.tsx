@@ -8,12 +8,14 @@ import { PageShell } from "@/components/PageShell";
 import { PracticeCard } from "@/components/PracticeCard";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { RevealPanel } from "@/components/RevealPanel";
+import { SpeakButton } from "@/components/SpeakButton";
 import { allCategoryIds, getCategoryLabel } from "@/lib/data/categories";
 import {
   filterSentences,
   parseCategoryParam,
   pickRandomSentence,
 } from "@/lib/practice";
+import { speakJapanese, stopSpeaking, warmUpVoices } from "@/lib/speech";
 import { timerSecondsForSentence } from "@/lib/testEngine";
 import type { SentenceItem } from "@/lib/types";
 
@@ -30,6 +32,12 @@ function AdvancedPracticeInner() {
   const [current, setCurrent] = useState<SentenceItem | null>(null);
   const [revealed, setRevealed] = useState(false);
   const [round, setRound] = useState(0);
+  const [autoPlayEnabled, setAutoPlayEnabled] = useState(true);
+
+  useEffect(() => {
+    warmUpVoices();
+    return () => stopSpeaking();
+  }, []);
 
   useEffect(() => {
     if (pool.length === 0) {
@@ -41,8 +49,21 @@ function AdvancedPracticeInner() {
     setRound(0);
   }, [pool]);
 
+  // Auto-play when sentence changes (may be blocked until first user tap on some mobiles)
+  useEffect(() => {
+    if (!current || !autoPlayEnabled) return;
+    const t = window.setTimeout(() => {
+      speakJapanese(current.sentence);
+    }, 250);
+    return () => {
+      window.clearTimeout(t);
+      stopSpeaking();
+    };
+  }, [current?.id, round, autoPlayEnabled]);
+
   const goNext = useCallback(() => {
     if (pool.length === 0) return;
+    stopSpeaking();
     setCurrent((prev) => pickRandomSentence(pool, prev));
     setRevealed(false);
     setRound((r) => r + 1);
@@ -74,7 +95,7 @@ function AdvancedPracticeInner() {
   return (
     <PageShell
       title="고급 연습"
-      subtitle={`문장 길이에 따라 ${timerSec}초 · 뜻과 읽는 법을 떠올려 보세요`}
+      subtitle={`문장 길이에 따라 ${timerSec}초 · 듣고 뜻을 떠올려 보세요`}
       backHref="/advanced"
     >
       <div className="flex flex-1 flex-col gap-5">
@@ -93,6 +114,18 @@ function AdvancedPracticeInner() {
           label={getCategoryLabel(current.categoryId)}
           size="word"
         />
+
+        <SpeakButton text={current.sentence} label="문장 듣기" />
+
+        <label className="flex items-center justify-center gap-2 text-xs text-slate-400">
+          <input
+            type="checkbox"
+            checked={autoPlayEnabled}
+            onChange={(e) => setAutoPlayEnabled(e.target.checked)}
+            className="h-4 w-4 rounded border-slate-400 text-sky-500"
+          />
+          다음 문장 자동 재생
+        </label>
 
         <RevealPanel
           title="정답"

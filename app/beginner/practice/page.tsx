@@ -83,6 +83,7 @@ function BeginnerPracticeInner() {
       <div className="flex flex-1 flex-col gap-5">
         <div className="flex justify-center">
           <CountdownTimer
+            key={`${current.char}-${round}`}
             resetKey={`${current.char}-${round}`}
             onComplete={() => setRevealed(true)}
             paused={revealed}

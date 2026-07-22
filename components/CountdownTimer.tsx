@@ -18,31 +18,35 @@ export function CountdownTimer({
   paused = false,
 }: CountdownTimerProps) {
   const [remaining, setRemaining] = useState(seconds);
-  const completedForKey = useRef<string | number | null>(null);
   const onCompleteRef = useRef(onComplete);
   onCompleteRef.current = onComplete;
+  /** Only fire onComplete after a real tick down to 0, never on reset. */
+  const armedRef = useRef(false);
 
   useEffect(() => {
     setRemaining(seconds);
-    completedForKey.current = null;
+    armedRef.current = true;
   }, [resetKey, seconds]);
 
   useEffect(() => {
     if (paused || remaining <= 0) return;
 
     const id = window.setInterval(() => {
-      setRemaining((prev) => Math.max(0, prev - 1));
+      setRemaining((prev) => {
+        if (prev <= 1) {
+          if (armedRef.current) {
+            armedRef.current = false;
+            // Defer so we don't call parent setState inside this updater.
+            queueMicrotask(() => onCompleteRef.current());
+          }
+          return 0;
+        }
+        return prev - 1;
+      });
     }, 1000);
 
     return () => window.clearInterval(id);
   }, [resetKey, paused, remaining > 0]);
-
-  useEffect(() => {
-    if (remaining !== 0) return;
-    if (completedForKey.current === resetKey) return;
-    completedForKey.current = resetKey;
-    onCompleteRef.current();
-  }, [remaining, resetKey]);
 
   const progress = remaining / seconds;
   const radius = 36;

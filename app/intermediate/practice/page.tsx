@@ -34,6 +34,7 @@ export default function IntermediatePracticePage() {
       <div className="flex flex-1 flex-col gap-5">
         <div className="flex justify-center">
           <CountdownTimer
+            key={`${current.id}-${round}`}
             resetKey={`${current.id}-${round}`}
             onComplete={() => setRevealed(true)}
             paused={revealed}

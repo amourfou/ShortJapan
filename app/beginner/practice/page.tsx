@@ -141,7 +141,7 @@ function BeginnerPracticeInner() {
           />
         </div>
 
-        <PracticeCard prompt={current.char} label={scriptLabel} size="char" />
+        <PracticeCard prompt={current.char} size="char" />
 
         {!revealed && speechEnabled && (
           <ListeningBadge

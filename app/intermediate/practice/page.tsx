@@ -9,6 +9,7 @@ import { ListeningBadge } from "@/components/ListeningBadge";
 import { PageShell } from "@/components/PageShell";
 import { PracticeCard } from "@/components/PracticeCard";
 import { PrimaryButton } from "@/components/PrimaryButton";
+import { SpeakButton } from "@/components/SpeakButton";
 import { useAutoSpeech } from "@/hooks/useAutoSpeech";
 import { allCategoryIds, getCategoryLabel } from "@/lib/data/categories";
 import {
@@ -19,9 +20,10 @@ import {
   pickRandomWord,
 } from "@/lib/practice";
 import { matchesSpokenAnswer } from "@/lib/speechRecognition";
+import { speakJapanese, stopSpeaking, warmUpVoices } from "@/lib/speech";
 import type { WordItem } from "@/lib/types";
 
-const FEEDBACK_MS = 2000;
+const FEEDBACK_MS = 2200;
 
 function IntermediatePracticeInner() {
   const searchParams = useSearchParams();
@@ -48,6 +50,11 @@ function IntermediatePracticeInner() {
   const speech = useAutoSpeech(speechEnabled && !!current && !revealed, questionKey);
 
   useEffect(() => {
+    warmUpVoices();
+    return () => stopSpeaking();
+  }, []);
+
+  useEffect(() => {
     if (pool.length === 0) {
       setCurrent(null);
       return;
@@ -60,8 +67,18 @@ function IntermediatePracticeInner() {
     gradingRef.current = false;
   }, [pool]);
 
+  // 정답 공개 시 해당 단어 일본어 발음 재생
+  useEffect(() => {
+    if (!revealed || !current) return;
+    const t = window.setTimeout(() => {
+      speakJapanese(current.word, { rate: 0.9 });
+    }, 150);
+    return () => window.clearTimeout(t);
+  }, [revealed, current?.id, round]);
+
   const goNext = useCallback(() => {
     if (pool.length === 0) return;
+    stopSpeaking();
     gradingRef.current = false;
     setCurrent((prev) => pickRandomWord(pool, prev));
     setRevealed(false);
@@ -112,8 +129,8 @@ function IntermediatePracticeInner() {
       title="중급 연습"
       subtitle={
         speechEnabled
-          ? "타이머 동안 읽는 법을 말해 보세요"
-          : "타이머 후 정답 확인"
+          ? "말하기 · 정답 시 일본어 발음"
+          : "정답 시 일본어 발음"
       }
       backHref="/intermediate"
     >
@@ -149,6 +166,10 @@ function IntermediatePracticeInner() {
           isCorrect={speechEnabled ? isCorrect : null}
           extra={{ label: "뜻:", value: current.meaningKo }}
         />
+
+        {revealed && (
+          <SpeakButton text={current.word} label="일본어 다시 듣기" />
+        )}
 
         <div className="mt-auto space-y-2 pt-2">
           <PrimaryButton onClick={goNext} disabled={!revealed}>

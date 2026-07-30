@@ -19,7 +19,6 @@ export default function AdvancedSetupPage() {
   const { user } = useAuth();
   const [selectedIds, setSelectedIds] = useState<string[]>(() => allCategoryIds());
   const [speechEnabled, setSpeechEnabled] = useState(false);
-  const [settingsLoaded, setSettingsLoaded] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -34,7 +33,6 @@ export default function AdvancedSetupPage() {
       if (typeof saved?.speechEnabled === "boolean") {
         setSpeechEnabled(saved.speechEnabled);
       }
-      setSettingsLoaded(true);
     })();
     return () => {
       cancelled = true;
@@ -73,15 +71,8 @@ export default function AdvancedSetupPage() {
       subtitle="여행·일상 문장 · 길이에 따라 제한 시간 조절"
       backHref="/"
     >
-      <div className="flex flex-1 flex-col gap-6">
-        <p className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-300">
-          연습: 문장이 길수록 타이머가 길어져요 (5~15초).
-          {settingsLoaded && (
-            <span className="mt-1 block text-xs text-slate-500">설정이 계정에 저장됩니다</span>
-          )}
-        </p>
-
-        <section className="flex-1">
+      <div className="flex flex-col gap-3">
+        <section>
           <CategoryCheckboxGroup
             categories={SITUATION_CATEGORIES}
             selectedIds={selectedIds}

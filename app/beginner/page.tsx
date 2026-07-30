@@ -20,7 +20,6 @@ export default function BeginnerSetupPage() {
     allRowIds(getRows("hiragana"))
   );
   const [speechEnabled, setSpeechEnabled] = useState(false);
-  const [settingsLoaded, setSettingsLoaded] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -37,7 +36,6 @@ export default function BeginnerSetupPage() {
       if (typeof saved?.speechEnabled === "boolean") {
         setSpeechEnabled(saved.speechEnabled);
       }
-      setSettingsLoaded(true);
     })();
     return () => {
       cancelled = true;
@@ -75,21 +73,18 @@ export default function BeginnerSetupPage() {
       subtitle="글자 종류와 연습할 음차를 고른 뒤 시작해요"
       backHref="/"
     >
-      <div className="flex flex-1 flex-col gap-6">
+      <div className="flex flex-col gap-3">
         <section className="space-y-2">
           <h2 className="text-sm font-semibold text-slate-200">문자 종류</h2>
           <ScriptToggle value={script} onChange={handleScriptChange} />
         </section>
 
-        <section className="flex-1">
+        <section>
           <RowCheckboxGroup
             rows={rows}
             selectedIds={selectedIds}
             onChange={setSelectedIds}
           />
-          {settingsLoaded && (
-            <p className="mt-2 text-xs text-slate-500">설정이 계정에 저장됩니다</p>
-          )}
         </section>
 
         <ModeStartBar

@@ -23,7 +23,7 @@ export function ModeStartBar({
   warning,
 }: ModeStartBarProps) {
   return (
-    <div className="sticky bottom-0 space-y-3 border-t border-white/10 bg-slate-950/80 py-4 backdrop-blur-md">
+    <div className="mt-3 space-y-2 border-t border-white/10 pt-3">
       {summary && (
         <p className="text-center text-sm text-slate-300">{summary}</p>
       )}
@@ -31,7 +31,7 @@ export function ModeStartBar({
         <p className="text-center text-xs text-amber-300/90">{warning}</p>
       )}
 
-      <label className="flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2.5 touch-manipulation">
+      <label className="flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 touch-manipulation">
         <input
           type="checkbox"
           checked={speechEnabled}

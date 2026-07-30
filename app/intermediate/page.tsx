@@ -28,7 +28,6 @@ export default function IntermediateSetupPage() {
     allRowIds(getSoundRows())
   );
   const [speechEnabled, setSpeechEnabled] = useState(false);
-  const [settingsLoaded, setSettingsLoaded] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -45,7 +44,6 @@ export default function IntermediateSetupPage() {
       if (typeof saved?.speechEnabled === "boolean") {
         setSpeechEnabled(saved.speechEnabled);
       }
-      setSettingsLoaded(true);
     })();
     return () => {
       cancelled = true;
@@ -91,15 +89,7 @@ export default function IntermediateSetupPage() {
       subtitle="상황과 음차를 고르면, 둘 다 맞는 단어만 나와요"
       backHref="/"
     >
-      <div className="flex flex-1 flex-col gap-8">
-        <p className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-300">
-          <strong className="text-white">상황</strong> +{" "}
-          <strong className="text-white">음차</strong> 조건에 맞는 단어로 연습·테스트해요.
-          {settingsLoaded && (
-            <span className="mt-1 block text-xs text-slate-500">설정이 계정에 저장됩니다</span>
-          )}
-        </p>
-
+      <div className="flex flex-col gap-3">
         <section>
           <CategoryCheckboxGroup
             categories={SITUATION_CATEGORIES}
@@ -116,7 +106,7 @@ export default function IntermediateSetupPage() {
             selectedIds={selectedRows}
             onChange={setSelectedRows}
           />
-          <p className="mt-2 text-xs text-slate-400">
+          <p className="mt-1.5 text-xs text-slate-400">
             전체 단어 {INTERMEDIATE_WORDS.length}개 중 현재{" "}
             <span className="text-slate-300">{wordCount}</span>개
           </p>

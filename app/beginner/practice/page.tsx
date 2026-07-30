@@ -9,14 +9,12 @@ import { ListeningBadge } from "@/components/ListeningBadge";
 import { PageShell } from "@/components/PageShell";
 import { PracticeCard } from "@/components/PracticeCard";
 import { PrimaryButton } from "@/components/PrimaryButton";
-import { SpeakButton } from "@/components/SpeakButton";
 import { useAutoSpeech } from "@/hooks/useAutoSpeech";
 import { collectChars, getRows, pickRandomChar } from "@/lib/practice";
 import { matchesSpokenAnswer } from "@/lib/speechRecognition";
-import { speakJapanese, stopSpeaking, warmUpVoices } from "@/lib/speech";
 import type { KanaChar, ScriptType } from "@/lib/types";
 
-const FEEDBACK_MS = 2200;
+const FEEDBACK_MS = 2000;
 
 function BeginnerPracticeInner() {
   const searchParams = useSearchParams();
@@ -47,11 +45,6 @@ function BeginnerPracticeInner() {
   const speech = useAutoSpeech(speechEnabled && !!current && !revealed, questionKey);
 
   useEffect(() => {
-    warmUpVoices();
-    return () => stopSpeaking();
-  }, []);
-
-  useEffect(() => {
     if (pool.length === 0) {
       setCurrent(null);
       return;
@@ -64,18 +57,8 @@ function BeginnerPracticeInner() {
     gradingRef.current = false;
   }, [pool]);
 
-  // 정답 공개 시 해당 글자 일본어 발음 재생
-  useEffect(() => {
-    if (!revealed || !current) return;
-    const t = window.setTimeout(() => {
-      speakJapanese(current.char, { rate: 0.85 });
-    }, 150);
-    return () => window.clearTimeout(t);
-  }, [revealed, current?.char, round]);
-
   const goNext = useCallback(() => {
     if (pool.length === 0) return;
-    stopSpeaking();
     gradingRef.current = false;
     setCurrent((prev) => pickRandomChar(pool, prev));
     setRevealed(false);
@@ -126,8 +109,8 @@ function BeginnerPracticeInner() {
       title="초급 연습"
       subtitle={
         speechEnabled
-          ? `${scriptLabel} · 말하기 · 정답 시 일본어 발음`
-          : `${scriptLabel} · 정답 시 일본어 발음`
+          ? `${scriptLabel} · 타이머 동안 한국어로 말해 보세요`
+          : `${scriptLabel} · 타이머 후 정답 확인`
       }
       backHref="/beginner"
     >
@@ -158,10 +141,6 @@ function BeginnerPracticeInner() {
           correctAnswer={current.readingKo}
           isCorrect={speechEnabled ? isCorrect : null}
         />
-
-        {revealed && (
-          <SpeakButton text={current.char} label="일본어 다시 듣기" />
-        )}
 
         <div className="mt-auto space-y-2 pt-2">
           <PrimaryButton onClick={goNext} disabled={!revealed}>

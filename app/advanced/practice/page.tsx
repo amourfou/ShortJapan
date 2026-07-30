@@ -9,7 +9,6 @@ import { ListeningBadge } from "@/components/ListeningBadge";
 import { PageShell } from "@/components/PageShell";
 import { PracticeCard } from "@/components/PracticeCard";
 import { PrimaryButton } from "@/components/PrimaryButton";
-import { SpeakButton } from "@/components/SpeakButton";
 import { useAutoSpeech } from "@/hooks/useAutoSpeech";
 import { allCategoryIds, getCategoryLabel } from "@/lib/data/categories";
 import {
@@ -18,11 +17,10 @@ import {
   pickRandomSentence,
 } from "@/lib/practice";
 import { matchesSpokenAnswer } from "@/lib/speechRecognition";
-import { speakJapanese, stopSpeaking, warmUpVoices } from "@/lib/speech";
 import { timerSecondsForSentence } from "@/lib/testEngine";
 import type { SentenceItem } from "@/lib/types";
 
-const FEEDBACK_MS = 2500;
+const FEEDBACK_MS = 2000;
 
 function AdvancedPracticeInner() {
   const searchParams = useSearchParams();
@@ -46,11 +44,6 @@ function AdvancedPracticeInner() {
   const speech = useAutoSpeech(speechEnabled && !!current && !revealed, questionKey);
 
   useEffect(() => {
-    warmUpVoices();
-    return () => stopSpeaking();
-  }, []);
-
-  useEffect(() => {
     if (pool.length === 0) {
       setCurrent(null);
       return;
@@ -63,18 +56,8 @@ function AdvancedPracticeInner() {
     gradingRef.current = false;
   }, [pool]);
 
-  // Japanese TTS always plays when answer is revealed (not tied to STT checkbox)
-  useEffect(() => {
-    if (!revealed || !current) return;
-    const t = window.setTimeout(() => {
-      speakJapanese(current.sentence);
-    }, 200);
-    return () => window.clearTimeout(t);
-  }, [revealed, current?.id, round]);
-
   const goNext = useCallback(() => {
     if (pool.length === 0) return;
-    stopSpeaking();
     gradingRef.current = false;
     setCurrent((prev) => pickRandomSentence(pool, prev));
     setRevealed(false);
@@ -125,8 +108,8 @@ function AdvancedPracticeInner() {
       title="고급 연습"
       subtitle={
         speechEnabled
-          ? `문장 ${timerSec}초 · 말하기 인식 · 정답 시 일본어 듣기`
-          : `문장 ${timerSec}초 · 정답 시 일본어 듣기`
+          ? `문장 ${timerSec}초 · 말하기 인식`
+          : `문장 ${timerSec}초 · 타이머 후 정답 확인`
       }
       backHref="/advanced"
     >
@@ -163,10 +146,6 @@ function AdvancedPracticeInner() {
           isCorrect={speechEnabled ? isCorrect : null}
           extra={{ label: "뜻:", value: current.meaningKo }}
         />
-
-        {revealed && (
-          <SpeakButton text={current.sentence} label="일본어 다시 듣기" />
-        )}
 
         <div className="mt-auto space-y-2 pt-2">
           <PrimaryButton onClick={goNext} disabled={!revealed}>

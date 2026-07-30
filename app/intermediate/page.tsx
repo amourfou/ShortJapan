@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CategoryCheckboxGroup } from "@/components/CategoryCheckboxGroup";
+import { ModeStartBar } from "@/components/ModeStartBar";
 import { PageShell } from "@/components/PageShell";
-import { PrimaryButton } from "@/components/PrimaryButton";
 import { RowCheckboxGroup } from "@/components/RowCheckboxGroup";
 import { useAuth } from "@/components/AuthProvider";
 import {
@@ -27,19 +27,24 @@ export default function IntermediateSetupPage() {
   const [selectedRows, setSelectedRows] = useState<string[]>(() =>
     allRowIds(getSoundRows())
   );
+  const [speechEnabled, setSpeechEnabled] = useState(false);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
 
   useEffect(() => {
     if (!user) return;
     let cancelled = false;
     (async () => {
-      const saved = await loadLevelSettings<{ cats?: string[]; rows?: string[] }>(
-        user.id,
-        "intermediate"
-      );
+      const saved = await loadLevelSettings<{
+        cats?: string[];
+        rows?: string[];
+        speechEnabled?: boolean;
+      }>(user.id, "intermediate");
       if (cancelled) return;
       if (saved?.cats?.length) setSelectedCats(saved.cats);
       if (saved?.rows?.length) setSelectedRows(saved.rows);
+      if (typeof saved?.speechEnabled === "boolean") {
+        setSpeechEnabled(saved.speechEnabled);
+      }
       setSettingsLoaded(true);
     })();
     return () => {
@@ -69,11 +74,13 @@ export default function IntermediateSetupPage() {
       await saveLevelSettings(user.id, "intermediate", {
         cats: selectedCats,
         rows: selectedRows,
+        speechEnabled,
       });
     }
     const params = new URLSearchParams({
       cats: selectedCats.join(","),
       rows: selectedRows.join(","),
+      speech: speechEnabled ? "1" : "0",
     });
     router.push(`/intermediate/${mode}?${params.toString()}`);
   };
@@ -87,7 +94,7 @@ export default function IntermediateSetupPage() {
       <div className="flex flex-1 flex-col gap-8">
         <p className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-300">
           <strong className="text-white">상황</strong> +{" "}
-          <strong className="text-white">음차</strong> 조건의 맞는 단어로 연습·테스트해요.
+          <strong className="text-white">음차</strong> 조건에 맞는 단어로 연습·테스트해요.
           {settingsLoaded && (
             <span className="mt-1 block text-xs text-slate-500">설정이 계정에 저장됩니다</span>
           )}
@@ -115,26 +122,23 @@ export default function IntermediateSetupPage() {
           </p>
         </section>
 
-        <div className="sticky bottom-0 space-y-2 border-t border-white/10 bg-slate-950/80 py-4 backdrop-blur-md">
-          <p className="text-center text-sm text-slate-300">
-            선택 단어 <span className="font-semibold text-white">{wordCount}</span>개
-          </p>
-          {!canStart && (
-            <p className="text-center text-xs text-amber-300/90">
-              조건에 맞는 단어가 없어요. 상황이나 음차를 더 선택해 보세요.
-            </p>
-          )}
-          <PrimaryButton onClick={() => void go("practice")} disabled={!canStart}>
-            연습 시작
-          </PrimaryButton>
-          <PrimaryButton
-            variant="secondary"
-            onClick={() => void go("test")}
-            disabled={!canStart}
-          >
-            테스트 (20문제 · 4지선다)
-          </PrimaryButton>
-        </div>
+        <ModeStartBar
+          canStart={canStart}
+          speechEnabled={speechEnabled}
+          onSpeechChange={setSpeechEnabled}
+          onPractice={() => void go("practice")}
+          onTest={() => void go("test")}
+          summary={
+            <>
+              선택 단어 <span className="font-semibold text-white">{wordCount}</span>개
+            </>
+          }
+          warning={
+            !canStart
+              ? "조건에 맞는 단어가 없어요. 상황이나 음차를 더 선택해 보세요."
+              : undefined
+          }
+        />
       </div>
     </PageShell>
   );

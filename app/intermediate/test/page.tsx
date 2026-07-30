@@ -21,6 +21,7 @@ function IntermediateTestInner() {
   const searchParams = useSearchParams();
   const catParam = searchParams.get("cats");
   const rowParam = searchParams.get("rows");
+  const speechEnabled = searchParams.get("speech") === "1";
 
   const pool = useMemo(() => {
     const cats = parseCategoryParam(catParam);
@@ -44,9 +45,11 @@ function IntermediateTestInner() {
       backHref="/intermediate"
       pool={pool}
       wrongStats={wrongStats}
+      speechEnabled={speechEnabled}
       settings={{
         cats: parseCategoryParam(catParam),
         rows: parseCategoryParam(rowParam),
+        speechEnabled,
       }}
     />
   );

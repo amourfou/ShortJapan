@@ -2,8 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { ModeStartBar } from "@/components/ModeStartBar";
 import { PageShell } from "@/components/PageShell";
-import { PrimaryButton } from "@/components/PrimaryButton";
 import { RowCheckboxGroup } from "@/components/RowCheckboxGroup";
 import { ScriptToggle } from "@/components/ScriptToggle";
 import { useAuth } from "@/components/AuthProvider";
@@ -19,19 +19,24 @@ export default function BeginnerSetupPage() {
   const [selectedIds, setSelectedIds] = useState<string[]>(() =>
     allRowIds(getRows("hiragana"))
   );
+  const [speechEnabled, setSpeechEnabled] = useState(false);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
 
   useEffect(() => {
     if (!user) return;
     let cancelled = false;
     (async () => {
-      const saved = await loadLevelSettings<{ script?: ScriptType; rows?: string[] }>(
-        user.id,
-        "beginner"
-      );
+      const saved = await loadLevelSettings<{
+        script?: ScriptType;
+        rows?: string[];
+        speechEnabled?: boolean;
+      }>(user.id, "beginner");
       if (cancelled) return;
       if (saved?.script) setScript(saved.script);
       if (saved?.rows?.length) setSelectedIds(saved.rows);
+      if (typeof saved?.speechEnabled === "boolean") {
+        setSpeechEnabled(saved.speechEnabled);
+      }
       setSettingsLoaded(true);
     })();
     return () => {
@@ -47,17 +52,19 @@ export default function BeginnerSetupPage() {
   const charCount = collectChars(rows, selectedIds).length;
   const canStart = selectedIds.length > 0 && charCount > 0;
 
-  const persist = async () => {
-    if (!user) return;
-    await saveLevelSettings(user.id, "beginner", { script, rows: selectedIds });
-  };
-
   const go = async (mode: "practice" | "test") => {
     if (!canStart) return;
-    await persist();
+    if (user) {
+      await saveLevelSettings(user.id, "beginner", {
+        script,
+        rows: selectedIds,
+        speechEnabled,
+      });
+    }
     const params = new URLSearchParams({
       script,
       rows: selectedIds.join(","),
+      speech: speechEnabled ? "1" : "0",
     });
     router.push(`/beginner/${mode}?${params.toString()}`);
   };
@@ -85,21 +92,19 @@ export default function BeginnerSetupPage() {
           )}
         </section>
 
-        <div className="sticky bottom-0 space-y-2 border-t border-white/10 bg-slate-950/80 py-4 backdrop-blur-md">
-          <p className="text-center text-sm text-slate-300">
-            선택 글자 <span className="font-semibold text-white">{charCount}</span>개
-          </p>
-          <PrimaryButton onClick={() => void go("practice")} disabled={!canStart}>
-            연습 시작
-          </PrimaryButton>
-          <PrimaryButton
-            variant="secondary"
-            onClick={() => void go("test")}
-            disabled={!canStart}
-          >
-            테스트 (20문제 · 4지선다)
-          </PrimaryButton>
-        </div>
+        <ModeStartBar
+          canStart={canStart}
+          speechEnabled={speechEnabled}
+          onSpeechChange={setSpeechEnabled}
+          onPractice={() => void go("practice")}
+          onTest={() => void go("test")}
+          summary={
+            <>
+              선택 글자{" "}
+              <span className="font-semibold text-white">{charCount}</span>개
+            </>
+          }
+        />
       </div>
     </PageShell>
   );

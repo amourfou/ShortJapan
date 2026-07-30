@@ -23,6 +23,7 @@ function BeginnerTestInner() {
     searchParams.get("script") === "katakana" ? "katakana" : "hiragana"
   ) as ScriptType;
   const rowParam = searchParams.get("rows") ?? "";
+  const speechEnabled = searchParams.get("speech") === "1";
 
   const pool = useMemo(() => {
     const rows = getRows(script);
@@ -45,7 +46,12 @@ function BeginnerTestInner() {
       backHref="/beginner"
       pool={pool}
       wrongStats={wrongStats}
-      settings={{ script, rows: parseCategoryParam(rowParam) }}
+      speechEnabled={speechEnabled}
+      settings={{
+        script,
+        rows: parseCategoryParam(rowParam),
+        speechEnabled,
+      }}
     />
   );
 }

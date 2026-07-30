@@ -27,6 +27,7 @@ const FEEDBACK_MS = 2500;
 function AdvancedPracticeInner() {
   const searchParams = useSearchParams();
   const catParam = searchParams.get("cats");
+  const speechEnabled = searchParams.get("speech") === "1";
 
   const pool = useMemo(() => {
     const ids = parseCategoryParam(catParam);
@@ -42,7 +43,7 @@ function AdvancedPracticeInner() {
   const gradingRef = useRef(false);
 
   const questionKey = current ? `${current.id}-${round}` : "none";
-  const speech = useAutoSpeech(!!current && !revealed, questionKey);
+  const speech = useAutoSpeech(speechEnabled && !!current && !revealed, questionKey);
 
   useEffect(() => {
     warmUpVoices();
@@ -62,14 +63,14 @@ function AdvancedPracticeInner() {
     gradingRef.current = false;
   }, [pool]);
 
-  // Japanese TTS only when answer is revealed
+  // Japanese TTS only when speech enabled and answer is revealed
   useEffect(() => {
-    if (!revealed || !current) return;
+    if (!speechEnabled || !revealed || !current) return;
     const t = window.setTimeout(() => {
       speakJapanese(current.sentence);
     }, 200);
     return () => window.clearTimeout(t);
-  }, [revealed, current?.id, round]);
+  }, [speechEnabled, revealed, current?.id, round]);
 
   const goNext = useCallback(() => {
     if (pool.length === 0) return;
@@ -85,14 +86,16 @@ function AdvancedPracticeInner() {
   const finishRound = useCallback(() => {
     if (!current || gradingRef.current) return;
     gradingRef.current = true;
-    speech.stop();
-    const transcript = speech.getTranscript();
-    const ok = !!transcript && matchesSpokenAnswer(transcript, current.readingKo);
+    if (speechEnabled) speech.stop();
+    const transcript = speechEnabled ? speech.getTranscript() : "";
+    const ok = speechEnabled
+      ? !!transcript && matchesSpokenAnswer(transcript, current.readingKo)
+      : null;
     setHeard(transcript);
     setIsCorrect(ok);
     setRevealed(true);
     window.setTimeout(() => goNext(), FEEDBACK_MS);
-  }, [current, speech, goNext]);
+  }, [current, speech, speechEnabled, goNext]);
 
   if (pool.length === 0) {
     return (
@@ -120,7 +123,11 @@ function AdvancedPracticeInner() {
   return (
     <PageShell
       title="고급 연습"
-      subtitle={`문장 ${timerSec}초 · 읽는 법을 말해 보세요 · 정답 시 일본어 음성`}
+      subtitle={
+        speechEnabled
+          ? `문장 ${timerSec}초 · 말하기 · 정답 시 일본어 음성`
+          : `문장 ${timerSec}초 · 타이머 후 정답 확인`
+      }
       backHref="/advanced"
     >
       <div className="flex flex-1 flex-col gap-5">
@@ -140,7 +147,7 @@ function AdvancedPracticeInner() {
           size="word"
         />
 
-        {!revealed && (
+        {!revealed && speechEnabled && (
           <ListeningBadge
             listening={speech.listening}
             supported={speech.supported}
@@ -151,13 +158,13 @@ function AdvancedPracticeInner() {
 
         <AnswerComparePanel
           visible={revealed}
-          heard={heard}
+          heard={speechEnabled ? heard : "—"}
           correctAnswer={current.readingKo}
-          isCorrect={isCorrect}
+          isCorrect={speechEnabled ? isCorrect : null}
           extra={{ label: "뜻:", value: current.meaningKo }}
         />
 
-        {revealed && (
+        {revealed && speechEnabled && (
           <SpeakButton text={current.sentence} label="일본어 다시 듣기" />
         )}
 

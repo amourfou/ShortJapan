@@ -27,6 +27,7 @@ function IntermediatePracticeInner() {
   const searchParams = useSearchParams();
   const catParam = searchParams.get("cats");
   const rowParam = searchParams.get("rows");
+  const speechEnabled = searchParams.get("speech") === "1";
 
   const pool = useMemo(() => {
     const cats = parseCategoryParam(catParam);
@@ -44,7 +45,7 @@ function IntermediatePracticeInner() {
   const gradingRef = useRef(false);
 
   const questionKey = current ? `${current.id}-${round}` : "none";
-  const speech = useAutoSpeech(!!current && !revealed, questionKey);
+  const speech = useAutoSpeech(speechEnabled && !!current && !revealed, questionKey);
 
   useEffect(() => {
     if (pool.length === 0) {
@@ -72,14 +73,16 @@ function IntermediatePracticeInner() {
   const finishRound = useCallback(() => {
     if (!current || gradingRef.current) return;
     gradingRef.current = true;
-    speech.stop();
-    const transcript = speech.getTranscript();
-    const ok = !!transcript && matchesSpokenAnswer(transcript, current.readingKo);
+    if (speechEnabled) speech.stop();
+    const transcript = speechEnabled ? speech.getTranscript() : "";
+    const ok = speechEnabled
+      ? !!transcript && matchesSpokenAnswer(transcript, current.readingKo)
+      : null;
     setHeard(transcript);
     setIsCorrect(ok);
     setRevealed(true);
     window.setTimeout(() => goNext(), FEEDBACK_MS);
-  }, [current, speech, goNext]);
+  }, [current, speech, speechEnabled, goNext]);
 
   if (pool.length === 0) {
     return (
@@ -107,7 +110,11 @@ function IntermediatePracticeInner() {
   return (
     <PageShell
       title="중급 연습"
-      subtitle="타이머 동안 읽는 법을 말해 보세요"
+      subtitle={
+        speechEnabled
+          ? "타이머 동안 읽는 법을 말해 보세요"
+          : "타이머 후 정답 확인"
+      }
       backHref="/intermediate"
     >
       <div className="flex flex-1 flex-col gap-5">
@@ -126,7 +133,7 @@ function IntermediatePracticeInner() {
           size="word"
         />
 
-        {!revealed && (
+        {!revealed && speechEnabled && (
           <ListeningBadge
             listening={speech.listening}
             supported={speech.supported}
@@ -137,9 +144,9 @@ function IntermediatePracticeInner() {
 
         <AnswerComparePanel
           visible={revealed}
-          heard={heard}
+          heard={speechEnabled ? heard : "—"}
           correctAnswer={current.readingKo}
-          isCorrect={isCorrect}
+          isCorrect={speechEnabled ? isCorrect : null}
           extra={{ label: "뜻:", value: current.meaningKo }}
         />
 

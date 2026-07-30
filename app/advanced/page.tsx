@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CategoryCheckboxGroup } from "@/components/CategoryCheckboxGroup";
+import { ModeStartBar } from "@/components/ModeStartBar";
 import { PageShell } from "@/components/PageShell";
-import { PrimaryButton } from "@/components/PrimaryButton";
 import { useAuth } from "@/components/AuthProvider";
 import {
   SITUATION_CATEGORIES,
@@ -18,15 +18,22 @@ export default function AdvancedSetupPage() {
   const router = useRouter();
   const { user } = useAuth();
   const [selectedIds, setSelectedIds] = useState<string[]>(() => allCategoryIds());
+  const [speechEnabled, setSpeechEnabled] = useState(false);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
 
   useEffect(() => {
     if (!user) return;
     let cancelled = false;
     (async () => {
-      const saved = await loadLevelSettings<{ cats?: string[] }>(user.id, "advanced");
+      const saved = await loadLevelSettings<{
+        cats?: string[];
+        speechEnabled?: boolean;
+      }>(user.id, "advanced");
       if (cancelled) return;
       if (saved?.cats?.length) setSelectedIds(saved.cats);
+      if (typeof saved?.speechEnabled === "boolean") {
+        setSpeechEnabled(saved.speechEnabled);
+      }
       setSettingsLoaded(true);
     })();
     return () => {
@@ -48,10 +55,14 @@ export default function AdvancedSetupPage() {
   const go = async (mode: "practice" | "test") => {
     if (!canStart) return;
     if (user) {
-      await saveLevelSettings(user.id, "advanced", { cats: selectedIds });
+      await saveLevelSettings(user.id, "advanced", {
+        cats: selectedIds,
+        speechEnabled,
+      });
     }
     const params = new URLSearchParams({
       cats: selectedIds.join(","),
+      speech: speechEnabled ? "1" : "0",
     });
     router.push(`/advanced/${mode}?${params.toString()}`);
   };
@@ -79,22 +90,19 @@ export default function AdvancedSetupPage() {
           />
         </section>
 
-        <div className="sticky bottom-0 space-y-2 border-t border-white/10 bg-slate-950/80 py-4 backdrop-blur-md">
-          <p className="text-center text-sm text-slate-300">
-            선택 문장{" "}
-            <span className="font-semibold text-white">{sentenceCount}</span>개
-          </p>
-          <PrimaryButton onClick={() => void go("practice")} disabled={!canStart}>
-            연습 시작
-          </PrimaryButton>
-          <PrimaryButton
-            variant="secondary"
-            onClick={() => void go("test")}
-            disabled={!canStart}
-          >
-            테스트 (20문제 · 4지선다)
-          </PrimaryButton>
-        </div>
+        <ModeStartBar
+          canStart={canStart}
+          speechEnabled={speechEnabled}
+          onSpeechChange={setSpeechEnabled}
+          onPractice={() => void go("practice")}
+          onTest={() => void go("test")}
+          summary={
+            <>
+              선택 문장{" "}
+              <span className="font-semibold text-white">{sentenceCount}</span>개
+            </>
+          }
+        />
       </div>
     </PageShell>
   );

@@ -15,6 +15,7 @@ function AdvancedTestInner() {
   const { user } = useAuth();
   const searchParams = useSearchParams();
   const catParam = searchParams.get("cats");
+  const speechEnabled = searchParams.get("speech") === "1";
 
   const pool = useMemo(() => {
     const ids = parseCategoryParam(catParam);
@@ -36,7 +37,8 @@ function AdvancedTestInner() {
       backHref="/advanced"
       pool={pool}
       wrongStats={wrongStats}
-      settings={{ cats: parseCategoryParam(catParam) }}
+      speechEnabled={speechEnabled}
+      settings={{ cats: parseCategoryParam(catParam), speechEnabled }}
       timerSeconds={(item) => timerSecondsForSentence(item.prompt)}
     />
   );

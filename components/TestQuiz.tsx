@@ -33,6 +33,8 @@ interface TestQuizProps {
   wrongStats: WrongStatRow[];
   settings: Record<string, unknown>;
   timerSeconds?: number | ((item: QuizItem) => number);
+  /** When false, no STT (default). */
+  speechEnabled?: boolean;
 }
 
 type Phase = "ready" | "running" | "feedback" | "done";
@@ -47,6 +49,7 @@ export function TestQuiz({
   wrongStats,
   settings,
   timerSeconds = TEST_TIMER_SECONDS,
+  speechEnabled = false,
 }: TestQuizProps) {
   const { user } = useAuth();
   const [phase, setPhase] = useState<Phase>("ready");
@@ -69,7 +72,7 @@ export function TestQuiz({
   const current = queue[index] ?? null;
   const questionKey = current ? `${current.id}-${index}` : "none";
 
-  const speechActive = phase === "running" && !!current;
+  const speechActive = speechEnabled && phase === "running" && !!current;
   const speech = useAutoSpeech(speechActive, questionKey);
 
   const secondsForCurrent = useMemo(() => {
@@ -93,13 +96,15 @@ export function TestQuiz({
 
   // Auto-select matching 4-choice option from live speech
   useEffect(() => {
-    if (phase !== "running" || !speech.transcript || choices.length === 0) return;
+    if (!speechEnabled || phase !== "running" || !speech.transcript || choices.length === 0) {
+      return;
+    }
     const match = findMatchingChoice(speech.transcript, choices);
     if (match) {
       setSelected(match);
       selectedRef.current = match;
     }
-  }, [speech.transcript, choices, phase]);
+  }, [speechEnabled, speech.transcript, choices, phase]);
 
   const start = () => {
     const q = buildTestQueue(pool, wrongStats, TEST_QUESTION_COUNT);
@@ -186,27 +191,25 @@ export function TestQuiz({
     [queue, allAnswers, finish]
   );
 
-  /** Grade only when timer ends — compare speech + selected choice. */
+  /** Grade when timer ends — speech (if on) + selected choice. */
   const onTimerComplete = useCallback(() => {
     if (!current || phase !== "running" || gradingRef.current) return;
     gradingRef.current = true;
 
-    speech.stop();
-    const heard = speech.getTranscript();
+    if (speechEnabled) speech.stop();
+    const heard = speechEnabled ? speech.getTranscript() : "";
     setHeardFinal(heard);
 
-    // Prefer speech-matched choice, then manual selection
     let chosen = selectedRef.current;
-    if (!chosen && heard) {
+    if (speechEnabled && !chosen && heard) {
       chosen = findMatchingChoice(heard, choices);
       if (chosen) setSelected(chosen);
     }
 
     const isCorrect =
       (chosen !== null && chosen === current.answer) ||
-      (!!heard && matchesSpokenAnswer(heard, current.answer));
+      (speechEnabled && !!heard && matchesSpokenAnswer(heard, current.answer));
 
-    // If speech matched answer but not a choice string, still correct
     const selectedAnswer =
       chosen ?? (isCorrect ? current.answer : heard || null);
 
@@ -222,7 +225,7 @@ export function TestQuiz({
     };
 
     window.setTimeout(() => goNextAfterFeedback(payload), FEEDBACK_MS);
-  }, [current, phase, speech, choices, goNextAfterFeedback]);
+  }, [current, phase, speech, speechEnabled, choices, goNextAfterFeedback]);
 
   /**
    * Manual tap: skip speech wait — grade immediately by choice, show result, next.
@@ -268,15 +271,22 @@ export function TestQuiz({
     return (
       <PageShell
         title={title}
-        subtitle="20문제 · 4지선다 · 자동 음성 인식"
+        subtitle={
+          speechEnabled
+            ? "20문제 · 4지선다 · 음성 지원 켜짐"
+            : "20문제 · 4지선다 · 음성 지원 꺼짐"
+        }
         backHref={backHref}
       >
         <div className="flex flex-1 flex-col gap-4">
           <ul className="space-y-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-4 text-sm text-slate-300">
             <li>· 문제 수: 최대 {TEST_QUESTION_COUNT}문항</li>
-            <li>· 보기를 바로 고르면 즉시 채점 후 다음 문제</li>
-            <li>· 말하면 보기가 자동 선택되고, 타이머 종료 시 채점</li>
-            <li>· 타이머 안에 말·선택 없으면 오답 처리</li>
+            <li>· 보기를 고르면 즉시 채점 후 다음 문제</li>
+            {speechEnabled ? (
+              <li>· 말하면 보기 자동 선택 · 타이머 종료 시 채점</li>
+            ) : (
+              <li>· 음성 지원 꺼짐 · 보기 선택으로 진행</li>
+            )}
             <li>· 자주 틀린 문제가 더 자주 나옵니다</li>
           </ul>
           <div className="mt-auto">
@@ -368,7 +378,7 @@ export function TestQuiz({
           />
         )}
 
-        {phase === "running" && (
+        {phase === "running" && speechEnabled && (
           <ListeningBadge
             listening={speech.listening}
             supported={speech.supported}
@@ -386,13 +396,19 @@ export function TestQuiz({
             >
               {feedback === "correct" ? "정답!" : "오답"}
             </p>
-            <div className="grid grid-cols-2 gap-2 text-sm">
-              <div className="rounded-xl bg-black/25 px-2 py-2">
-                <p className="text-[10px] text-slate-400">인식</p>
-                <p className="font-semibold text-white">
-                  {heardFinal || selected || "—"}
-                </p>
-              </div>
+            <div
+              className={`grid gap-2 text-sm ${
+                speechEnabled ? "grid-cols-2" : "grid-cols-1"
+              }`}
+            >
+              {speechEnabled && (
+                <div className="rounded-xl bg-black/25 px-2 py-2">
+                  <p className="text-[10px] text-slate-400">인식</p>
+                  <p className="font-semibold text-white">
+                    {heardFinal || selected || "—"}
+                  </p>
+                </div>
+              )}
               <div className="rounded-xl bg-black/25 px-2 py-2">
                 <p className="text-[10px] text-slate-400">정답</p>
                 <p className="font-semibold text-emerald-200">

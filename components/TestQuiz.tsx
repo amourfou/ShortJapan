@@ -273,8 +273,8 @@ export function TestQuiz({
         title={title}
         subtitle={
           speechEnabled
-            ? "20문제 · 4지선다 · 음성 지원 켜짐"
-            : "20문제 · 4지선다 · 음성 지원 꺼짐"
+            ? "20문제 · 4지선다 · 말하기 인식 켜짐"
+            : "20문제 · 4지선다 · 말하기 인식 꺼짐"
         }
         backHref={backHref}
       >
@@ -285,7 +285,7 @@ export function TestQuiz({
             {speechEnabled ? (
               <li>· 말하면 보기 자동 선택 · 타이머 종료 시 채점</li>
             ) : (
-              <li>· 음성 지원 꺼짐 · 보기 선택으로 진행</li>
+              <li>· 말하기 인식 꺼짐 · 보기 선택으로 진행</li>
             )}
             <li>· 자주 틀린 문제가 더 자주 나옵니다</li>
           </ul>

@@ -40,7 +40,7 @@ export function ModeStartBar({
         />
         <span className="text-sm text-slate-200">
           음성 지원
-          <span className="ml-1 text-xs text-slate-500">(말하기 인식 · 고급 일본어 듣기)</span>
+          <span className="ml-1 text-xs text-slate-500">(말하기 인식)</span>
         </span>
       </label>
 

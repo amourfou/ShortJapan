@@ -63,14 +63,14 @@ function AdvancedPracticeInner() {
     gradingRef.current = false;
   }, [pool]);
 
-  // Japanese TTS only when speech enabled and answer is revealed
+  // Japanese TTS always plays when answer is revealed (not tied to STT checkbox)
   useEffect(() => {
-    if (!speechEnabled || !revealed || !current) return;
+    if (!revealed || !current) return;
     const t = window.setTimeout(() => {
       speakJapanese(current.sentence);
     }, 200);
     return () => window.clearTimeout(t);
-  }, [speechEnabled, revealed, current?.id, round]);
+  }, [revealed, current?.id, round]);
 
   const goNext = useCallback(() => {
     if (pool.length === 0) return;
@@ -125,8 +125,8 @@ function AdvancedPracticeInner() {
       title="고급 연습"
       subtitle={
         speechEnabled
-          ? `문장 ${timerSec}초 · 말하기 · 정답 시 일본어 음성`
-          : `문장 ${timerSec}초 · 타이머 후 정답 확인`
+          ? `문장 ${timerSec}초 · 말하기 인식 · 정답 시 일본어 듣기`
+          : `문장 ${timerSec}초 · 정답 시 일본어 듣기`
       }
       backHref="/advanced"
     >
@@ -164,7 +164,7 @@ function AdvancedPracticeInner() {
           extra={{ label: "뜻:", value: current.meaningKo }}
         />
 
-        {revealed && speechEnabled && (
+        {revealed && (
           <SpeakButton text={current.sentence} label="일본어 다시 듣기" />
         )}
 

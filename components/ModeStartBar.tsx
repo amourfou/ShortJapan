@@ -38,10 +38,7 @@ export function ModeStartBar({
           onChange={(e) => onSpeechChange(e.target.checked)}
           className="h-4 w-4 rounded border-slate-400 text-sky-500 focus:ring-sky-400"
         />
-        <span className="text-sm text-slate-200">
-          음성 지원
-          <span className="ml-1 text-xs text-slate-500">(말하기 인식)</span>
-        </span>
+        <span className="text-sm text-slate-200">말하기 인식</span>
       </label>
 
       <div className="grid grid-cols-2 gap-2">

@@ -20,15 +20,15 @@ export const LEVELS: LevelInfo[] = [
   {
     id: "advanced",
     title: "고급",
-    description: "상황별 문장 · 여행·일상 회화",
+    description: "한자 3단계 · 표지·편의점·짧은 말",
     href: "/advanced",
     available: true,
     accent: "from-amber-400 to-orange-500",
   },
   {
     id: "native",
-    title: "현지인",
-    description: "한자 섞어 보기 (준비중)",
+    title: "문장",
+    description: "한자 섞인 문장 (준비중)",
     available: false,
     accent: "from-rose-400 to-pink-500",
   },

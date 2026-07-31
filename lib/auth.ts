@@ -99,14 +99,46 @@ export const saveUserIdToCookie = (userId: string) => {
 };
 export const clearUserIdCookie = clearUserSession;
 
+function withTimeout<T>(promise: PromiseLike<T>, ms: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error("timeout")), ms);
+    Promise.resolve(promise).then(
+      (v) => {
+        clearTimeout(t);
+        resolve(v);
+      },
+      (e) => {
+        clearTimeout(t);
+        reject(e);
+      }
+    );
+  });
+}
+
 export async function getUserById(userId: string): Promise<DbUser | null> {
-  const { data, error } = await supabase
-    .from("users")
-    .select("*")
-    .eq("id", userId)
-    .single();
-  if (error || !data) return null;
-  return data as DbUser;
+  try {
+    const { data, error } = await supabase
+      .from("users")
+      .select("*")
+      .eq("id", userId)
+      .single();
+    if (error || !data) return null;
+    return data as DbUser;
+  } catch {
+    return null;
+  }
+}
+
+/** Fetch user with a network timeout so UI never hangs forever. */
+export async function getUserByIdTimed(
+  userId: string,
+  ms = 5000
+): Promise<DbUser | null> {
+  try {
+    return await withTimeout(getUserById(userId), ms);
+  } catch {
+    return null;
+  }
 }
 
 /** Login by exact name match. */
@@ -114,14 +146,17 @@ export async function loginByName(name: string): Promise<DbUser | null> {
   const trimmed = name.trim();
   if (!trimmed) return null;
 
-  const { data, error } = await supabase
-    .from("users")
-    .select("*")
-    .eq("name", trimmed)
-    .maybeSingle();
+  try {
+    const { data, error } = await withTimeout(
+      supabase.from("users").select("*").eq("name", trimmed).maybeSingle(),
+      8000
+    );
 
-  if (error || !data) return null;
-  return data as DbUser;
+    if (error || !data) return null;
+    return data as DbUser;
+  } catch {
+    return null;
+  }
 }
 
 export async function nameExists(name: string): Promise<boolean> {

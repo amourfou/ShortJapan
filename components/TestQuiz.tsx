@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import Link from "next/link";
 import { CountdownTimer } from "@/components/CountdownTimer";
 import { ListeningBadge } from "@/components/ListeningBadge";
@@ -35,11 +42,72 @@ interface TestQuizProps {
   timerSeconds?: number | ((item: QuizItem) => number);
   /** When false, no STT (default). */
   speechEnabled?: boolean;
+  /** Shown on the ready screen above the start button (e.g. kanji mode options). */
+  setupPanel?: ReactNode;
+  /** Use Japanese font on choice buttons (hiragana options). */
+  choicesUseJpFont?: boolean;
+  /** Extra ready-screen subtitle lines. */
+  readyHints?: string[];
 }
 
 type Phase = "ready" | "running" | "feedback" | "done";
 
 const FEEDBACK_MS = 1800;
+
+/** Squares between timer and question: null pending, true correct, false wrong. */
+function QuestionProgressGauge({
+  total,
+  results,
+  currentIndex,
+}: {
+  total: number;
+  results: (boolean | null)[];
+  currentIndex: number;
+}) {
+  const correctCount = results.filter((r) => r === true).length;
+  // Leave room for "n / m 맞춤" label; squares share remaining width on one row.
+  const gapPx = 3;
+
+  return (
+    <div className="flex w-full items-center gap-2 px-0.5">
+      <div
+        className="flex min-w-0 flex-1 items-center"
+        style={{ gap: gapPx }}
+      >
+        {Array.from({ length: Math.max(total, 1) }, (_, i) => {
+          const r = results[i] ?? null;
+          const isCurrent = i === currentIndex && r === null;
+          return (
+            <span
+              key={i}
+              title={`${i + 1}번`}
+              className={[
+                "min-w-0 flex-1 aspect-square max-h-4 rounded-[3px] border",
+                r === true
+                  ? "border-emerald-400 bg-emerald-400"
+                  : r === false
+                    ? "border-rose-400 bg-rose-400"
+                    : isCurrent
+                      ? "border-sky-400 bg-sky-400/30"
+                      : "border-white/25 bg-white/10",
+              ].join(" ")}
+            />
+          );
+        })}
+      </div>
+      <p className="shrink-0 text-xs tabular-nums text-slate-400">
+        <span className="font-semibold text-white">{correctCount}</span>
+        <span className="text-slate-500">/{total} 맞춤</span>
+      </p>
+    </div>
+  );
+}
+
+function speechOk(heard: string, item: QuizItem): boolean {
+  if (!heard.trim()) return false;
+  if (matchesSpokenAnswer(heard, item.answer)) return true;
+  return (item.speechAnswers ?? []).some((a) => matchesSpokenAnswer(heard, a));
+}
 
 export function TestQuiz({
   level,
@@ -50,6 +118,9 @@ export function TestQuiz({
   settings,
   timerSeconds = TEST_TIMER_SECONDS,
   speechEnabled = false,
+  setupPanel,
+  choicesUseJpFont = false,
+  readyHints = [],
 }: TestQuizProps) {
   const { user } = useAuth();
   const [phase, setPhase] = useState<Phase>("ready");
@@ -58,8 +129,8 @@ export function TestQuiz({
   const [choices, setChoices] = useState<string[]>([]);
   const [answers, setAnswers] = useState<AnswerPayload[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
-  const [feedback, setFeedback] = useState<"correct" | "wrong" | null>(null);
-  const [heardFinal, setHeardFinal] = useState("");
+  /** Per-question result for progress squares (null = not graded yet). */
+  const [slotResults, setSlotResults] = useState<(boolean | null)[]>([]);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const finishingRef = useRef(false);
@@ -106,6 +177,14 @@ export function TestQuiz({
     }
   }, [speechEnabled, speech.transcript, choices, phase]);
 
+  const markSlotResult = (i: number, isCorrect: boolean) => {
+    setSlotResults((prev) => {
+      const next = [...prev];
+      next[i] = isCorrect;
+      return next;
+    });
+  };
+
   const start = () => {
     const q = buildTestQueue(pool, wrongStats, TEST_QUESTION_COUNT);
     setQueue(q);
@@ -113,10 +192,9 @@ export function TestQuiz({
     indexRef.current = 0;
     setAnswers([]);
     answersRef.current = [];
+    setSlotResults(Array.from({ length: q.length }, () => null));
     setSelected(null);
     selectedRef.current = null;
-    setFeedback(null);
-    setHeardFinal("");
     setSaved(false);
     finishingRef.current = false;
     gradingRef.current = false;
@@ -183,8 +261,6 @@ export function TestQuiz({
       );
       setSelected(null);
       selectedRef.current = null;
-      setFeedback(null);
-      setHeardFinal("");
       gradingRef.current = false;
       setPhase("running");
     },
@@ -198,7 +274,6 @@ export function TestQuiz({
 
     if (speechEnabled) speech.stop();
     const heard = speechEnabled ? speech.getTranscript() : "";
-    setHeardFinal(heard);
 
     let chosen = selectedRef.current;
     if (speechEnabled && !chosen && heard) {
@@ -208,12 +283,12 @@ export function TestQuiz({
 
     const isCorrect =
       (chosen !== null && chosen === current.answer) ||
-      (speechEnabled && !!heard && matchesSpokenAnswer(heard, current.answer));
+      (speechEnabled && !!heard && speechOk(heard, current));
 
     const selectedAnswer =
       chosen ?? (isCorrect ? current.answer : heard || null);
 
-    setFeedback(isCorrect ? "correct" : "wrong");
+    markSlotResult(indexRef.current, isCorrect);
     setPhase("feedback");
 
     const payload: AnswerPayload = {
@@ -237,10 +312,9 @@ export function TestQuiz({
     speech.stop();
     setSelected(choice);
     selectedRef.current = choice;
-    setHeardFinal(""); // 탭 선택 — 음성 인식 결과 없음
 
     const isCorrect = choice === current.answer;
-    setFeedback(isCorrect ? "correct" : "wrong");
+    markSlotResult(indexRef.current, isCorrect);
     setPhase("feedback");
 
     const payload: AnswerPayload = {
@@ -278,9 +352,11 @@ export function TestQuiz({
         }
         backHref={backHref}
       >
-        <div className="flex flex-1 flex-col gap-4">
+        <div className="flex flex-col gap-4">
+          {setupPanel}
+
           <ul className="space-y-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-4 text-sm text-slate-300">
-            <li>· 문제 수: 최대 {TEST_QUESTION_COUNT}문항</li>
+            <li>· 문제 수: 최대 {TEST_QUESTION_COUNT}문항 (후보 {pool.length}개)</li>
             <li>· 보기를 고르면 즉시 채점 후 다음 문제</li>
             {speechEnabled ? (
               <li>· 말하면 보기 자동 선택 · 타이머 종료 시 채점</li>
@@ -288,10 +364,13 @@ export function TestQuiz({
               <li>· 말하기 인식 꺼짐 · 보기 선택으로 진행</li>
             )}
             <li>· 자주 틀린 문제가 더 자주 나옵니다</li>
+            {readyHints.map((h) => (
+              <li key={h}>· {h}</li>
+            ))}
           </ul>
-          <div className="mt-auto">
-            <PrimaryButton onClick={start}>테스트 시작</PrimaryButton>
-          </div>
+          <PrimaryButton onClick={start} disabled={pool.length === 0}>
+            테스트 시작
+          </PrimaryButton>
         </div>
       </PageShell>
     );
@@ -370,10 +449,17 @@ export function TestQuiz({
           />
         </div>
 
+        {queue.length > 0 && (
+          <QuestionProgressGauge
+            total={queue.length}
+            results={slotResults}
+            currentIndex={index}
+          />
+        )}
+
         {current && (
           <PracticeCard
             prompt={current.prompt}
-            label="발음을 말해 보세요"
             size={current.prompt.length > 6 ? "word" : "char"}
           />
         )}
@@ -387,40 +473,8 @@ export function TestQuiz({
           />
         )}
 
-        {phase === "feedback" && (
-          <div className="space-y-2 text-center">
-            <p
-              className={`text-sm font-bold ${
-                feedback === "correct" ? "text-emerald-300" : "text-rose-300"
-              }`}
-            >
-              {feedback === "correct" ? "정답!" : "오답"}
-            </p>
-            <div
-              className={`grid gap-2 text-sm ${
-                speechEnabled ? "grid-cols-2" : "grid-cols-1"
-              }`}
-            >
-              {speechEnabled && (
-                <div className="rounded-xl bg-black/25 px-2 py-2">
-                  <p className="text-[10px] text-slate-400">인식</p>
-                  <p className="font-semibold text-white">
-                    {heardFinal || selected || "—"}
-                  </p>
-                </div>
-              )}
-              <div className="rounded-xl bg-black/25 px-2 py-2">
-                <p className="text-[10px] text-slate-400">정답</p>
-                <p className="font-semibold text-emerald-200">
-                  {current?.answer}
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
         <div className="grid grid-cols-2 gap-2">
-          {choices.map((c) => {
+          {choices.map((c, ci) => {
             const isSelected = selected === c;
             const showCorrect =
               phase === "feedback" && c === current?.answer;
@@ -428,12 +482,13 @@ export function TestQuiz({
               phase === "feedback" && isSelected && c !== current?.answer;
             return (
               <button
-                key={c}
+                key={`${ci}-${c}`}
                 type="button"
                 disabled={phase === "feedback"}
                 onClick={() => onPickChoice(c)}
                 className={[
-                  "min-h-12 rounded-2xl border px-3 py-3 text-base font-semibold touch-manipulation transition sm:text-lg",
+                  "flex min-h-12 items-center justify-center gap-1.5 rounded-2xl border px-2 py-3 text-base font-semibold touch-manipulation transition sm:gap-2 sm:px-3 sm:text-lg",
+                  choicesUseJpFont ? "font-jp" : "",
                   showCorrect
                     ? "border-emerald-400/60 bg-emerald-500/25 text-white"
                     : showWrong
@@ -444,7 +499,12 @@ export function TestQuiz({
                   phase === "feedback" ? "opacity-90" : "",
                 ].join(" ")}
               >
-                {c}
+                {showCorrect && (
+                  <span className="shrink-0 rounded-md bg-emerald-400/30 px-1.5 py-0.5 text-[10px] font-bold leading-none text-emerald-100 sm:text-xs">
+                    정답
+                  </span>
+                )}
+                <span>{c}</span>
               </button>
             );
           })}

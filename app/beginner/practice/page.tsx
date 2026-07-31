@@ -14,8 +14,6 @@ import { collectChars, getRows, pickRandomChar } from "@/lib/practice";
 import { matchesSpokenAnswer } from "@/lib/speechRecognition";
 import type { KanaChar, ScriptType } from "@/lib/types";
 
-const FEEDBACK_MS = 2000;
-
 function BeginnerPracticeInner() {
   const searchParams = useSearchParams();
   const script = (
@@ -78,8 +76,7 @@ function BeginnerPracticeInner() {
     setHeard(transcript);
     setIsCorrect(ok);
     setRevealed(true);
-    window.setTimeout(() => goNext(), FEEDBACK_MS);
-  }, [current, speech, speechEnabled, goNext]);
+  }, [current, speech, speechEnabled]);
 
   if (pool.length === 0) {
     return (
@@ -137,9 +134,10 @@ function BeginnerPracticeInner() {
 
         <AnswerComparePanel
           visible={revealed}
-          heard={speechEnabled ? heard : "—"}
+          heard={heard}
           correctAnswer={current.readingKo}
           isCorrect={speechEnabled ? isCorrect : null}
+          showHeard={speechEnabled}
         />
 
         <div className="mt-auto space-y-2 pt-2">

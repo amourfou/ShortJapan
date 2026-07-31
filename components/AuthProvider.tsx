@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -14,7 +15,7 @@ import {
   clearUserSession,
   getStoredSession,
   getStoredUserId,
-  getUserById,
+  getUserByIdTimed,
   loginByName,
   registerUser,
   saveUserSession,
@@ -36,48 +37,84 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 const PUBLIC_PATHS = ["/login"];
+/** Hard cap so "불러오는 중" never sticks forever */
+const LOADING_SAFETY_MS = 6000;
+
+function sessionToUser(cached: {
+  id: string;
+  name: string;
+  organization: string;
+}): DbUser {
+  return {
+    id: cached.id,
+    name: cached.name || "사용자",
+    organization: cached.organization || "",
+    high_score: 0,
+    created_at: "",
+    updated_at: "",
+  };
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<DbUser | null>(null);
   const [loading, setLoading] = useState(true);
   const pathname = usePathname();
   const router = useRouter();
+  const refreshGen = useRef(0);
 
   const refresh = useCallback(async () => {
-    const id = getStoredUserId();
-    if (!id) {
-      setUser(null);
-      setLoading(false);
-      return;
-    }
+    const gen = ++refreshGen.current;
+    try {
+      const id = getStoredUserId();
+      if (!id) {
+        if (gen === refreshGen.current) {
+          setUser(null);
+          setLoading(false);
+        }
+        return;
+      }
 
-    // Optional optimistic restore from localStorage while validating
-    const cached = getStoredSession();
-    if (cached?.id && cached.name) {
-      setUser({
-        id: cached.id,
-        name: cached.name,
-        organization: cached.organization,
-        high_score: 0,
-        created_at: "",
-        updated_at: "",
-      });
-    }
+      // Unblock UI immediately from localStorage (refresh hang fix)
+      const cached = getStoredSession();
+      if (cached?.id) {
+        setUser(sessionToUser(cached));
+        setLoading(false);
+      }
 
-    const u = await getUserById(id);
-    if (!u) {
-      clearUserSession();
-      setUser(null);
-    } else {
-      saveUserSession(u);
-      setUser(u);
+      const u = await getUserByIdTimed(id, 5000);
+      if (gen !== refreshGen.current) return;
+
+      if (u) {
+        saveUserSession(u);
+        setUser(u);
+      } else if (!cached?.id) {
+        // No cache and server failed / user gone
+        clearUserSession();
+        setUser(null);
+      }
+      // If server timed out but cache exists, keep cached user
+    } catch (e) {
+      console.error("auth refresh", e);
+      // Keep whatever user we already set from cache
+    } finally {
+      if (gen === refreshGen.current) {
+        setLoading(false);
+      }
     }
-    setLoading(false);
   }, []);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  // Safety: never stay on loading screen forever
+  useEffect(() => {
+    if (!loading) return;
+    const t = window.setTimeout(() => {
+      setLoading(false);
+    }, LOADING_SAFETY_MS);
+    return () => window.clearTimeout(t);
+  }, [loading]);
 
   useEffect(() => {
     if (loading) return;
@@ -93,31 +130,48 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [user, loading, pathname, router]);
 
   const login = useCallback(async (name: string) => {
-    const u = await loginByName(name);
-    if (!u) {
+    try {
+      const u = await loginByName(name);
+      if (!u) {
+        return {
+          ok: false,
+          message: "이름을 찾을 수 없어요. 등록 후 이용해 주세요.",
+        };
+      }
+      saveUserSession(u);
+      setUser(u);
+      setLoading(false);
+      return { ok: true };
+    } catch {
       return {
         ok: false,
-        message: "이름을 찾을 수 없어요. 등록 후 이용해 주세요.",
+        message: "서버 연결이 불안정해요. 잠시 후 다시 시도해 주세요.",
       };
     }
-    saveUserSession(u);
-    setUser(u);
-    return { ok: true };
   }, []);
 
   const register = useCallback(async (name: string, organization: string) => {
-    const { user: u, error } = await registerUser(name, organization);
-    if (!u) {
-      return { ok: false, message: error ?? "등록 실패" };
+    try {
+      const { user: u, error } = await registerUser(name, organization);
+      if (!u) {
+        return { ok: false, message: error ?? "등록 실패" };
+      }
+      saveUserSession(u);
+      setUser(u);
+      setLoading(false);
+      return { ok: true };
+    } catch {
+      return {
+        ok: false,
+        message: "서버 연결이 불안정해요. 잠시 후 다시 시도해 주세요.",
+      };
     }
-    saveUserSession(u);
-    setUser(u);
-    return { ok: true };
   }, []);
 
   const logout = useCallback(() => {
     clearUserSession();
     setUser(null);
+    setLoading(false);
     router.replace("/login");
   }, [router]);
 
@@ -131,13 +185,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   let body: ReactNode = children;
-  if (loading) {
+  if (loading && !user) {
+    // Only full-screen block when we have no cached user yet
     body = (
-      <div className="flex min-h-[100dvh] items-center justify-center text-slate-300">
-        불러오는 중…
+      <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-3 text-slate-300">
+        <p>불러오는 중…</p>
+        <p className="text-xs text-slate-500">잠시만 기다려 주세요</p>
       </div>
     );
-  } else if (!user && !isPublic) {
+  } else if (!loading && !user && !isPublic) {
     body = (
       <div className="flex min-h-[100dvh] items-center justify-center text-slate-300">
         로그인 페이지로 이동 중…

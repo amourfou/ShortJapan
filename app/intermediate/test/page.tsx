@@ -12,6 +12,7 @@ import {
   filterWords,
   getSoundRows,
   parseCategoryParam,
+  parseWordScriptParam,
 } from "@/lib/practice";
 import { wordToQuiz } from "@/lib/testEngine";
 import type { WrongStatRow } from "@/lib/supabase";
@@ -21,15 +22,17 @@ function IntermediateTestInner() {
   const searchParams = useSearchParams();
   const catParam = searchParams.get("cats");
   const rowParam = searchParams.get("rows");
+  const scriptParam = searchParams.get("script");
   const speechEnabled = searchParams.get("speech") === "1";
 
   const pool = useMemo(() => {
     const cats = parseCategoryParam(catParam);
     const rows = parseCategoryParam(rowParam);
+    const script = parseWordScriptParam(scriptParam);
     const selectedCats = cats.length > 0 ? cats : allCategoryIds();
     const selectedRows = rows.length > 0 ? rows : allRowIds(getSoundRows());
-    return filterWords(selectedCats, selectedRows).map(wordToQuiz);
-  }, [catParam, rowParam]);
+    return filterWords(selectedCats, selectedRows, script).map(wordToQuiz);
+  }, [catParam, rowParam, scriptParam]);
 
   const [wrongStats, setWrongStats] = useState<WrongStatRow[]>([]);
 
@@ -49,6 +52,7 @@ function IntermediateTestInner() {
       settings={{
         cats: parseCategoryParam(catParam),
         rows: parseCategoryParam(rowParam),
+        script: parseWordScriptParam(scriptParam),
         speechEnabled,
       }}
     />

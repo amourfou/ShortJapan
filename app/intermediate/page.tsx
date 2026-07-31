@@ -6,6 +6,10 @@ import { CategoryCheckboxGroup } from "@/components/CategoryCheckboxGroup";
 import { ModeStartBar } from "@/components/ModeStartBar";
 import { PageShell } from "@/components/PageShell";
 import { RowCheckboxGroup } from "@/components/RowCheckboxGroup";
+import {
+  WordScriptFilter,
+  type WordScriptFilterValue,
+} from "@/components/WordScriptFilter";
 import { useAuth } from "@/components/AuthProvider";
 import {
   SITUATION_CATEGORIES,
@@ -17,6 +21,7 @@ import {
   allRowIds,
   filterWords,
   getSoundRows,
+  type WordScriptFilter as ScriptFilter,
 } from "@/lib/practice";
 
 export default function IntermediateSetupPage() {
@@ -27,6 +32,7 @@ export default function IntermediateSetupPage() {
   const [selectedRows, setSelectedRows] = useState<string[]>(() =>
     allRowIds(getSoundRows())
   );
+  const [wordScript, setWordScript] = useState<WordScriptFilterValue>("all");
   const [speechEnabled, setSpeechEnabled] = useState(false);
 
   useEffect(() => {
@@ -36,11 +42,19 @@ export default function IntermediateSetupPage() {
       const saved = await loadLevelSettings<{
         cats?: string[];
         rows?: string[];
+        wordScript?: WordScriptFilterValue;
         speechEnabled?: boolean;
       }>(user.id, "intermediate");
       if (cancelled) return;
       if (saved?.cats?.length) setSelectedCats(saved.cats);
       if (saved?.rows?.length) setSelectedRows(saved.rows);
+      if (
+        saved?.wordScript === "all" ||
+        saved?.wordScript === "hiragana" ||
+        saved?.wordScript === "katakana"
+      ) {
+        setWordScript(saved.wordScript);
+      }
       if (typeof saved?.speechEnabled === "boolean") {
         setSpeechEnabled(saved.speechEnabled);
       }
@@ -50,18 +64,20 @@ export default function IntermediateSetupPage() {
     };
   }, [user]);
 
+  const scriptFilter = wordScript as ScriptFilter;
+
   const filtered = useMemo(
-    () => filterWords(selectedCats, selectedRows),
-    [selectedCats, selectedRows]
+    () => filterWords(selectedCats, selectedRows, scriptFilter),
+    [selectedCats, selectedRows, scriptFilter]
   );
 
   const counts = useMemo(() => {
     const map: Record<string, number> = {};
     for (const cat of SITUATION_CATEGORIES) {
-      map[cat.id] = filterWords([cat.id], selectedRows).length;
+      map[cat.id] = filterWords([cat.id], selectedRows, scriptFilter).length;
     }
     return map;
-  }, [selectedRows]);
+  }, [selectedRows, scriptFilter]);
 
   const wordCount = filtered.length;
   const canStart = wordCount > 0;
@@ -72,12 +88,14 @@ export default function IntermediateSetupPage() {
       await saveLevelSettings(user.id, "intermediate", {
         cats: selectedCats,
         rows: selectedRows,
+        wordScript,
         speechEnabled,
       });
     }
     const params = new URLSearchParams({
       cats: selectedCats.join(","),
       rows: selectedRows.join(","),
+      script: wordScript,
       speech: speechEnabled ? "1" : "0",
     });
     router.push(`/intermediate/${mode}?${params.toString()}`);
@@ -85,33 +103,11 @@ export default function IntermediateSetupPage() {
 
   return (
     <PageShell
-      title="중급 설정"
-      subtitle="상황과 음차를 고르면, 둘 다 맞는 단어만 나와요"
+      title="중급"
+      subtitle="바로 시작하거나, 아래에서 상황·문자·음차를 골라 보세요"
       backHref="/"
     >
       <div className="flex flex-col gap-3">
-        <section>
-          <CategoryCheckboxGroup
-            categories={SITUATION_CATEGORIES}
-            selectedIds={selectedCats}
-            onChange={setSelectedCats}
-            counts={counts}
-            title="상황 · 카테고리"
-          />
-        </section>
-
-        <section>
-          <RowCheckboxGroup
-            rows={soundRows}
-            selectedIds={selectedRows}
-            onChange={setSelectedRows}
-          />
-          <p className="mt-1.5 text-xs text-slate-400">
-            전체 단어 {INTERMEDIATE_WORDS.length}개 중 현재{" "}
-            <span className="text-slate-300">{wordCount}</span>개
-          </p>
-        </section>
-
         <ModeStartBar
           canStart={canStart}
           speechEnabled={speechEnabled}
@@ -125,10 +121,38 @@ export default function IntermediateSetupPage() {
           }
           warning={
             !canStart
-              ? "조건에 맞는 단어가 없어요. 상황이나 음차를 더 선택해 보세요."
+              ? "조건에 맞는 단어가 없어요. 상황·문자·음차를 조정해 보세요."
               : undefined
           }
         />
+
+        <section>
+          <CategoryCheckboxGroup
+            categories={SITUATION_CATEGORIES}
+            selectedIds={selectedCats}
+            onChange={setSelectedCats}
+            counts={counts}
+            title="상황 · 카테고리"
+          />
+        </section>
+
+        <section>
+          <WordScriptFilter value={wordScript} onChange={setWordScript} />
+        </section>
+
+        <section>
+          <RowCheckboxGroup
+            rows={soundRows}
+            selectedIds={selectedRows}
+            onChange={setSelectedRows}
+          />
+          <p className="mt-1.5 text-xs text-slate-400">
+            전체 단어 {INTERMEDIATE_WORDS.length}개 중 현재{" "}
+            <span className="text-slate-300">{wordCount}</span>개
+            {wordScript === "katakana" && " · 카타카나만"}
+            {wordScript === "hiragana" && " · 히라가나만"}
+          </p>
+        </section>
       </div>
     </PageShell>
   );

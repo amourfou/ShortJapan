@@ -71,47 +71,42 @@ export function CountdownTimer({
   const urgent = remainingSec <= 2 && remainingSec > 0;
 
   return (
-    <div className="flex flex-col items-center gap-1" aria-live="polite">
-      <div className="relative h-20 w-20">
-        <svg className="h-20 w-20 -rotate-90" viewBox="0 0 80 80">
-          <circle
-            cx="40"
-            cy="40"
-            r={radius}
-            fill="none"
-            stroke="rgba(255,255,255,0.1)"
-            strokeWidth="6"
-          />
-          <circle
-            cx="40"
-            cy="40"
-            r={radius}
-            fill="none"
-            stroke={urgent ? "#f472b6" : "#38bdf8"}
-            strokeWidth="6"
-            strokeLinecap="round"
-            strokeDasharray={circumference}
-            strokeDashoffset={strokeDashoffset}
-          />
-        </svg>
-        <div className="absolute inset-0 flex items-center justify-center">
-          <span
-            className={[
-              "text-2xl font-bold tabular-nums",
-              remainingSec === 0
-                ? "text-emerald-300"
-                : urgent
-                  ? "text-pink-300 animate-pulse-soft"
-                  : "text-white",
-            ].join(" ")}
-          >
-            {remainingSec}
-          </span>
-        </div>
+    <div className="relative h-20 w-20 shrink-0" aria-live="polite">
+      <svg className="h-20 w-20 -rotate-90" viewBox="0 0 80 80">
+        <circle
+          cx="40"
+          cy="40"
+          r={radius}
+          fill="none"
+          stroke="rgba(255,255,255,0.1)"
+          strokeWidth="6"
+        />
+        <circle
+          cx="40"
+          cy="40"
+          r={radius}
+          fill="none"
+          stroke={urgent ? "#f472b6" : "#38bdf8"}
+          strokeWidth="6"
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={strokeDashoffset}
+        />
+      </svg>
+      <div className="absolute inset-0 flex items-center justify-center">
+        <span
+          className={[
+            "text-2xl font-bold tabular-nums",
+            remainingSec === 0
+              ? "text-emerald-300"
+              : urgent
+                ? "text-pink-300 animate-pulse-soft"
+                : "text-white",
+          ].join(" ")}
+        >
+          {remainingSec}
+        </span>
       </div>
-      <p className="text-xs text-slate-400">
-        {remainingSec > 0 ? "속으로 맞춰 보세요" : "정답 공개!"}
-      </p>
     </div>
   );
 }

@@ -52,14 +52,14 @@ export default function HomePage() {
         </div>
       </Link>
 
-      <section className="grid flex-1 gap-3 sm:grid-cols-2 sm:gap-4">
+      <section className="grid grid-cols-2 gap-3">
         {LEVELS.map((level) => (
           <LevelCard key={level.id} level={level} />
         ))}
       </section>
 
-      <footer className="mt-8 pb-2 text-center text-xs text-slate-500">
-        초급 · 중급 · 고급 · 모바일 최적화
+      <footer className="mt-6 pb-2 text-center text-xs text-slate-500">
+        초급 · 중급 · 고급(한자) · 모바일 최적화
       </footer>
     </div>
   );

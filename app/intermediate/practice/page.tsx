@@ -16,26 +16,27 @@ import {
   filterWords,
   getSoundRows,
   parseCategoryParam,
+  parseWordScriptParam,
   pickRandomWord,
 } from "@/lib/practice";
 import { matchesSpokenAnswer } from "@/lib/speechRecognition";
 import type { WordItem } from "@/lib/types";
 
-const FEEDBACK_MS = 2000;
-
 function IntermediatePracticeInner() {
   const searchParams = useSearchParams();
   const catParam = searchParams.get("cats");
   const rowParam = searchParams.get("rows");
+  const scriptParam = searchParams.get("script");
   const speechEnabled = searchParams.get("speech") === "1";
 
   const pool = useMemo(() => {
     const cats = parseCategoryParam(catParam);
     const rows = parseCategoryParam(rowParam);
+    const script = parseWordScriptParam(scriptParam);
     const selectedCats = cats.length > 0 ? cats : allCategoryIds();
     const selectedRows = rows.length > 0 ? rows : allRowIds(getSoundRows());
-    return filterWords(selectedCats, selectedRows);
-  }, [catParam, rowParam]);
+    return filterWords(selectedCats, selectedRows, script);
+  }, [catParam, rowParam, scriptParam]);
 
   const [current, setCurrent] = useState<WordItem | null>(null);
   const [revealed, setRevealed] = useState(false);
@@ -81,8 +82,7 @@ function IntermediatePracticeInner() {
     setHeard(transcript);
     setIsCorrect(ok);
     setRevealed(true);
-    window.setTimeout(() => goNext(), FEEDBACK_MS);
-  }, [current, speech, speechEnabled, goNext]);
+  }, [current, speech, speechEnabled]);
 
   if (pool.length === 0) {
     return (
@@ -144,9 +144,10 @@ function IntermediatePracticeInner() {
 
         <AnswerComparePanel
           visible={revealed}
-          heard={speechEnabled ? heard : "—"}
+          heard={heard}
           correctAnswer={current.readingKo}
           isCorrect={speechEnabled ? isCorrect : null}
+          showHeard={speechEnabled}
           extra={{ label: "뜻:", value: current.meaningKo }}
         />
 

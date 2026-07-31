@@ -1,6 +1,15 @@
-import type { KanaChar, KanaRow, ScriptType, SentenceItem, WordItem } from "@/lib/types";
+import type {
+  KanaChar,
+  KanaRow,
+  KanjiItem,
+  KanjiStageId,
+  ScriptType,
+  SentenceItem,
+  WordItem,
+} from "@/lib/types";
 import { HIRAGANA_ROWS } from "@/lib/data/hiragana";
 import { KATAKANA_ROWS } from "@/lib/data/katakana";
+import { getKanjiByStage, kanjiSpeechAnswers } from "@/lib/data/kanji";
 import { INTERMEDIATE_WORDS } from "@/lib/data/words";
 import { ADVANCED_SENTENCES } from "@/lib/data/sentences";
 import { wordMatchesRows } from "@/lib/kanaFilter";
@@ -30,16 +39,34 @@ export function filterByCategories<T extends { categoryId: string }>(
   return items.filter((item) => set.has(item.categoryId));
 }
 
+export type WordScriptFilter = "all" | ScriptType;
+
 /**
- * Intermediate words: must be in selected situation categories AND
- * use only kana from selected 음차 rows (both hiragana & katakana of those rows).
+ * Intermediate words: situation categories + 음차 rows + optional script filter.
+ * - script "all": hiragana & katakana words
+ * - script "hiragana" | "katakana": that script only
+ * - 음차 rows match both hira/kata chars of those rows (unless filtered by script)
  */
-export function filterWords(categoryIds: string[], rowIds?: string[]): WordItem[] {
+export function filterWords(
+  categoryIds: string[],
+  rowIds?: string[],
+  script: WordScriptFilter = "all"
+): WordItem[] {
   let words = filterByCategories(INTERMEDIATE_WORDS, categoryIds);
+  if (script !== "all") {
+    words = words.filter((w) => w.script === script);
+  }
   if (rowIds && rowIds.length > 0) {
     words = words.filter((w) => wordMatchesRows(w.word, rowIds));
   }
   return words;
+}
+
+export function parseWordScriptParam(
+  param: string | null
+): WordScriptFilter {
+  if (param === "hiragana" || param === "katakana") return param;
+  return "all";
 }
 
 export function filterSentences(categoryIds: string[]): SentenceItem[] {
@@ -73,6 +100,16 @@ export function pickRandomWord(pool: WordItem[], previous: WordItem | null): Wor
 export function pickRandomSentence(pool: SentenceItem[], previous: SentenceItem | null): SentenceItem {
   return pickRandomAvoiding(pool, previous, (s) => s.id);
 }
+
+export function filterKanji(stage: KanjiStageId): KanjiItem[] {
+  return getKanjiByStage(stage);
+}
+
+export function pickRandomKanji(pool: KanjiItem[], previous: KanjiItem | null): KanjiItem {
+  return pickRandomAvoiding(pool, previous, (k) => k.id);
+}
+
+export { kanjiSpeechAnswers };
 
 export function allRowIds(rows: KanaRow[]): string[] {
   return rows.map((row) => row.id);

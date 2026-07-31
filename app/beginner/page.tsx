@@ -69,24 +69,11 @@ export default function BeginnerSetupPage() {
 
   return (
     <PageShell
-      title="초급 설정"
-      subtitle="글자 종류와 연습할 음차를 고른 뒤 시작해요"
+      title="초급"
+      subtitle="바로 시작하거나, 아래에서 음차를 골라 보세요"
       backHref="/"
     >
       <div className="flex flex-col gap-3">
-        <section className="space-y-2">
-          <h2 className="text-sm font-semibold text-slate-200">문자 종류</h2>
-          <ScriptToggle value={script} onChange={handleScriptChange} />
-        </section>
-
-        <section>
-          <RowCheckboxGroup
-            rows={rows}
-            selectedIds={selectedIds}
-            onChange={setSelectedIds}
-          />
-        </section>
-
         <ModeStartBar
           canStart={canStart}
           speechEnabled={speechEnabled}
@@ -100,6 +87,19 @@ export default function BeginnerSetupPage() {
             </>
           }
         />
+
+        <section className="space-y-2">
+          <h2 className="text-sm font-semibold text-slate-200">문자 종류</h2>
+          <ScriptToggle value={script} onChange={handleScriptChange} />
+        </section>
+
+        <section>
+          <RowCheckboxGroup
+            rows={rows}
+            selectedIds={selectedIds}
+            onChange={setSelectedIds}
+          />
+        </section>
       </div>
     </PageShell>
   );

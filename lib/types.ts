@@ -1,6 +1,9 @@
 export type ScriptType = "hiragana" | "katakana";
 export type LevelId = "beginner" | "intermediate" | "advanced" | "native";
-export type StudyLevel = "beginner" | "intermediate" | "advanced";
+export type StudyLevel = "beginner" | "intermediate" | "advanced" | "native";
+
+/** 최고급 문장 표시 난이도 */
+export type SentenceScriptMode = "hira" | "kata" | "kanji";
 
 export interface KanaChar {
   char: string;
@@ -26,7 +29,12 @@ export interface WordItem {
 
 export interface SentenceItem {
   id: string;
-  sentence: string;
+  /** 기본 히라가나만 */
+  hira: string;
+  /** 히라가나 + 카타카나(외래어) */
+  kata: string;
+  /** 한자 섞인 실생활 표기 */
+  kanji: string;
   readingKo: string;
   meaningKo: string;
   categoryId: string;
@@ -92,4 +100,8 @@ export interface LevelInfo {
   href?: string;
   available: boolean;
   accent: string;
+}
+
+export function isSentenceScriptMode(v: string): v is SentenceScriptMode {
+  return v === "hira" || v === "kata" || v === "kanji";
 }

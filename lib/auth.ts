@@ -101,13 +101,22 @@ export const clearUserIdCookie = clearUserSession;
 
 function withTimeout<T>(promise: PromiseLike<T>, ms: number): Promise<T> {
   return new Promise((resolve, reject) => {
-    const t = setTimeout(() => reject(new Error("timeout")), ms);
+    let settled = false;
+    const t = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      reject(new Error("timeout"));
+    }, ms);
     Promise.resolve(promise).then(
       (v) => {
+        if (settled) return;
+        settled = true;
         clearTimeout(t);
         resolve(v);
       },
       (e) => {
+        if (settled) return;
+        settled = true;
         clearTimeout(t);
         reject(e);
       }

@@ -59,7 +59,7 @@ export default function HomePage() {
       </section>
 
       <footer className="mt-6 pb-2 text-center text-xs text-slate-500">
-        초급 · 중급 · 고급(한자) · 모바일 최적화
+        초급 · 중급 · 고급(한자) · 최고급(문장)
       </footer>
     </div>
   );

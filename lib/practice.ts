@@ -5,16 +5,31 @@ import type {
   KanjiStageId,
   ScriptType,
   SentenceItem,
+  SentenceScriptMode,
   WordItem,
 } from "@/lib/types";
+import { isSentenceScriptMode } from "@/lib/types";
 import { HIRAGANA_ROWS } from "@/lib/data/hiragana";
 import { KATAKANA_ROWS } from "@/lib/data/katakana";
 import { getKanjiByStage, kanjiSpeechAnswers } from "@/lib/data/kanji";
 import { INTERMEDIATE_WORDS } from "@/lib/data/words";
-import { ADVANCED_SENTENCES } from "@/lib/data/sentences";
+import {
+  NATIVE_SENTENCES,
+  sentenceDisplay,
+} from "@/lib/data/sentences";
 import { wordMatchesRows } from "@/lib/kanaFilter";
 
 export const TIMER_SECONDS = 5;
+
+/**
+ * Practice timer for words / multi-char prompts (intermediate+).
+ * Matches testEngine.timerSecondsForPrompt.
+ */
+export function timerSecondsForText(text: string): number {
+  const len = text.replace(/\s/g, "").length;
+  if (len <= 2) return 5;
+  return Math.min(14, 5 + (len - 2));
+}
 
 export function getRows(script: ScriptType): KanaRow[] {
   return script === "hiragana" ? HIRAGANA_ROWS : KATAKANA_ROWS;
@@ -70,8 +85,17 @@ export function parseWordScriptParam(
 }
 
 export function filterSentences(categoryIds: string[]): SentenceItem[] {
-  return filterByCategories(ADVANCED_SENTENCES, categoryIds);
+  return filterByCategories(NATIVE_SENTENCES, categoryIds);
 }
+
+export function parseSentenceScriptParam(
+  param: string | null
+): SentenceScriptMode {
+  if (param && isSentenceScriptMode(param)) return param;
+  return "hira";
+}
+
+export { sentenceDisplay };
 
 /** Pick a random item, avoiding immediate repeat when pool has 2+ items. */
 export function pickRandomAvoiding<T>(pool: T[], previous: T | null, keyFn: (item: T) => string): T {

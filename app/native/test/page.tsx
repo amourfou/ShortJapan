@@ -6,71 +6,77 @@ import { PageShell } from "@/components/PageShell";
 import { TestQuiz } from "@/components/TestQuiz";
 import { useAuth } from "@/components/AuthProvider";
 import { allCategoryIds } from "@/lib/data/categories";
+import { SENTENCE_SCRIPT_MODES } from "@/lib/data/sentences";
 import { getWrongStats } from "@/lib/db";
 import {
-  allRowIds,
-  filterWords,
-  getSoundRows,
+  filterSentences,
   parseCategoryParam,
-  parseWordScriptParam,
+  parseSentenceScriptParam,
 } from "@/lib/practice";
-import { timerSecondsForPrompt, wordToQuiz } from "@/lib/testEngine";
+import {
+  sentenceToQuiz,
+  timerSecondsForPrompt,
+} from "@/lib/testEngine";
 import type { WrongStatRow } from "@/lib/supabase";
 
-function IntermediateTestInner() {
+function NativeTestInner() {
   const { user } = useAuth();
   const searchParams = useSearchParams();
   const catParam = searchParams.get("cats");
-  const rowParam = searchParams.get("rows");
   const scriptParam = searchParams.get("script");
   const speechEnabled = searchParams.get("speech") === "1";
+  const scriptMode = parseSentenceScriptParam(scriptParam);
 
   const pool = useMemo(() => {
     const cats = parseCategoryParam(catParam);
-    const rows = parseCategoryParam(rowParam);
-    const script = parseWordScriptParam(scriptParam);
     const selectedCats = cats.length > 0 ? cats : allCategoryIds();
-    const selectedRows = rows.length > 0 ? rows : allRowIds(getSoundRows());
-    return filterWords(selectedCats, selectedRows, script).map(wordToQuiz);
-  }, [catParam, rowParam, scriptParam]);
+    return filterSentences(selectedCats).map((s) => sentenceToQuiz(s, scriptMode));
+  }, [catParam, scriptMode]);
 
   const [wrongStats, setWrongStats] = useState<WrongStatRow[]>([]);
 
   useEffect(() => {
     if (!user) return;
-    void getWrongStats(user.id, "intermediate").then(setWrongStats);
+    void getWrongStats(user.id, "native").then(setWrongStats);
   }, [user]);
+
+  const modeLabel =
+    SENTENCE_SCRIPT_MODES.find((m) => m.id === scriptMode)?.label ?? scriptMode;
 
   return (
     <TestQuiz
-      level="intermediate"
-      title="중급 테스트"
-      backHref="/intermediate"
+      level="native"
+      title="최고급 테스트"
+      backHref="/native"
       pool={pool}
       wrongStats={wrongStats}
       speechEnabled={speechEnabled}
       timerSeconds={(item) => timerSecondsForPrompt(item.prompt)}
-      readyHints={["글자가 길수록 타이머가 조금 더 길어요 (5~14초)"]}
+      choicesUseJpFont={false}
+      readyHints={[
+        `표기: ${modeLabel}`,
+        "글자가 길수록 타이머가 조금 더 길어요",
+        "보기는 정답과 비슷한 길이로 나와요",
+      ]}
       settings={{
         cats: parseCategoryParam(catParam),
-        rows: parseCategoryParam(rowParam),
-        script: parseWordScriptParam(scriptParam),
+        scriptMode,
         speechEnabled,
       }}
     />
   );
 }
 
-export default function IntermediateTestPage() {
+export default function NativeTestPage() {
   return (
     <Suspense
       fallback={
-        <PageShell title="중급 테스트" backHref="/intermediate">
+        <PageShell title="최고급 테스트" backHref="/native">
           <p className="text-center text-slate-300">불러오는 중…</p>
         </PageShell>
       }
     >
-      <IntermediateTestInner />
+      <NativeTestInner />
     </Suspense>
   );
 }

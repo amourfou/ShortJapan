@@ -202,7 +202,9 @@ export function TestQuiz({
       setChoices(
         buildChoices(
           q[0].answer,
-          q.map((i) => i.answer).concat(allAnswers)
+          q.map((i) => i.answer).concat(allAnswers),
+          undefined,
+          { matchLength: level === "intermediate" }
         )
       );
     }
@@ -256,7 +258,9 @@ export function TestQuiz({
       setChoices(
         buildChoices(
           next.answer,
-          queue.map((i) => i.answer).concat(allAnswers)
+          queue.map((i) => i.answer).concat(allAnswers),
+          undefined,
+          { matchLength: level === "intermediate" }
         )
       );
       setSelected(null);
@@ -264,7 +268,7 @@ export function TestQuiz({
       gradingRef.current = false;
       setPhase("running");
     },
-    [queue, allAnswers, finish]
+    [queue, allAnswers, finish, level]
   );
 
   /** Grade when timer ends — speech (if on) + selected choice. */
@@ -399,17 +403,26 @@ export function TestQuiz({
             <div className="rounded-2xl border border-white/10 bg-black/20 px-3 py-3">
               <p className="mb-2 text-sm font-semibold text-slate-200">틀린 문제</p>
               <ul className="max-h-48 space-y-2 overflow-y-auto text-sm">
-                {wrongs.map((w, i) => (
-                  <li key={`${w.itemId}-${i}`} className="rounded-xl bg-white/5 px-3 py-2">
-                    <span className="font-jp text-white">{w.prompt}</span>
-                    <span className="mt-0.5 block text-xs text-slate-400">
-                      정답: {w.correctAnswer}
-                      {w.selectedAnswer
-                        ? ` · 인식/선택: ${w.selectedAnswer}`
-                        : " · 미응답"}
-                    </span>
-                  </li>
-                ))}
+                {wrongs.map((w, i) => {
+                  const meaning = queue.find((q) => q.id === w.itemId)?.label
+                    ?? pool.find((q) => q.id === w.itemId)?.label;
+                  return (
+                    <li key={`${w.itemId}-${i}`} className="rounded-xl bg-white/5 px-3 py-2">
+                      <span className="font-jp text-white">{w.prompt}</span>
+                      {meaning && (
+                        <span className="mt-0.5 block text-xs text-sky-200/90">
+                          뜻: {meaning}
+                        </span>
+                      )}
+                      <span className="mt-0.5 block text-xs text-slate-400">
+                        정답: {w.correctAnswer}
+                        {w.selectedAnswer
+                          ? ` · 인식/선택: ${w.selectedAnswer}`
+                          : " · 미응답"}
+                      </span>
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           )}
@@ -460,8 +473,20 @@ export function TestQuiz({
         {current && (
           <PracticeCard
             prompt={current.prompt}
-            size={current.prompt.length > 6 ? "word" : "char"}
+            size={
+              // Match intermediate practice (always word). Others: long prompts use word.
+              level === "intermediate" || current.prompt.length > 6
+                ? "word"
+                : "char"
+            }
           />
+        )}
+
+        {phase === "feedback" && current?.label && (
+          <p className="animate-reveal-pop -mt-1 text-center text-base text-slate-200 sm:text-lg">
+            <span className="text-slate-400">뜻 </span>
+            <span className="font-semibold text-sky-100">{current.label}</span>
+          </p>
         )}
 
         {phase === "running" && speechEnabled && (

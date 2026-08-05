@@ -22,6 +22,7 @@ const LEVEL_LABEL: Record<StudyLevel, string> = {
   beginner: "초급",
   intermediate: "중급",
   advanced: "고급",
+  native: "최고급",
 };
 
 export default function StatsPage() {
@@ -32,22 +33,35 @@ export default function StatsPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      setLoading(false);
+      return;
+    }
     let cancelled = false;
+    const safety = window.setTimeout(() => {
+      if (!cancelled) setLoading(false);
+    }, 8000);
     (async () => {
       setLoading(true);
-      const [s, w] = await Promise.all([
-        getTestSessions(user.id, undefined, 50),
-        getWrongStats(user.id),
-      ]);
-      if (!cancelled) {
-        setSessions(s);
-        setWrongs(w);
-        setLoading(false);
+      try {
+        const [s, w] = await Promise.all([
+          getTestSessions(user.id, undefined, 50),
+          getWrongStats(user.id),
+        ]);
+        if (!cancelled) {
+          setSessions(s);
+          setWrongs(w);
+        }
+      } catch (e) {
+        console.error("stats load", e);
+      } finally {
+        if (!cancelled) setLoading(false);
+        window.clearTimeout(safety);
       }
     })();
     return () => {
       cancelled = true;
+      window.clearTimeout(safety);
     };
   }, [user]);
 
@@ -93,7 +107,7 @@ export default function StatsPage() {
     >
       <div className="flex flex-1 flex-col gap-5">
         <div className="flex flex-wrap gap-2">
-          {(["all", "beginner", "intermediate", "advanced"] as const).map((k) => (
+          {(["all", "beginner", "intermediate", "advanced", "native"] as const).map((k) => (
             <button
               key={k}
               type="button"

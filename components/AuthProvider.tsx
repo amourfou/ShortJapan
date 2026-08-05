@@ -5,11 +5,13 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
   type ReactNode,
 } from "react";
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   clearUserSession,
@@ -38,7 +40,8 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 const PUBLIC_PATHS = ["/login"];
 /** Hard cap so "불러오는 중" never sticks forever */
-const LOADING_SAFETY_MS = 6000;
+const LOADING_SAFETY_MS = 2500;
+const REDIRECT_HINT_MS = 4000;
 
 function sessionToUser(cached: {
   id: string;
@@ -58,19 +61,18 @@ function sessionToUser(cached: {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<DbUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showLoginLink, setShowLoginLink] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
   const refreshGen = useRef(0);
+  const booted = useRef(false);
 
   const refresh = useCallback(async () => {
     const gen = ++refreshGen.current;
     try {
       const id = getStoredUserId();
       if (!id) {
-        if (gen === refreshGen.current) {
-          setUser(null);
-          setLoading(false);
-        }
+        setUser(null);
         return;
       }
 
@@ -78,10 +80,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const cached = getStoredSession();
       if (cached?.id) {
         setUser(sessionToUser(cached));
+        // Clear loading as soon as we can render with cache
         setLoading(false);
       }
 
-      const u = await getUserByIdTimed(id, 5000);
+      const u = await getUserByIdTimed(id, 4000);
+      // Stale generation: still must not leave loading stuck (handled in finally)
       if (gen !== refreshGen.current) return;
 
       if (u) {
@@ -97,13 +101,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error("auth refresh", e);
       // Keep whatever user we already set from cache
     } finally {
-      if (gen === refreshGen.current) {
-        setLoading(false);
-      }
+      // Always clear loading — even stale generations must not leave the spinner.
+      // (React Strict Mode double-invoke was able to skip setLoading when gen mismatched.)
+      setLoading(false);
     }
   }, []);
 
-  useEffect(() => {
+  // Run before paint on client so cached session skips the full-screen spinner
+  useLayoutEffect(() => {
+    if (booted.current) return;
+    booted.current = true;
+
+    const cached = getStoredSession();
+    if (cached?.id) {
+      setUser(sessionToUser(cached));
+      setLoading(false);
+    } else if (!getStoredUserId()) {
+      // Definitely logged out — don't wait for network
+      setLoading(false);
+    }
     void refresh();
   }, [refresh]);
 
@@ -111,6 +127,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!loading) return;
     const t = window.setTimeout(() => {
+      console.warn("auth loading safety timeout");
+      // Last resort: try cache once more
+      const cached = getStoredSession();
+      if (cached?.id) setUser(sessionToUser(cached));
       setLoading(false);
     }, LOADING_SAFETY_MS);
     return () => window.clearTimeout(t);
@@ -128,6 +148,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       router.replace("/");
     }
   }, [user, loading, pathname, router]);
+
+  // If redirect to login stalls, show a manual link
+  useEffect(() => {
+    if (loading || user) {
+      setShowLoginLink(false);
+      return;
+    }
+    const isPublic = PUBLIC_PATHS.some(
+      (p) => pathname === p || pathname.startsWith(`${p}/`)
+    );
+    if (isPublic) {
+      setShowLoginLink(false);
+      return;
+    }
+    const t = window.setTimeout(() => setShowLoginLink(true), REDIRECT_HINT_MS);
+    return () => window.clearTimeout(t);
+  }, [loading, user, pathname]);
 
   const login = useCallback(async (name: string) => {
     try {
@@ -185,18 +222,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   let body: ReactNode = children;
+  // Only full-screen block when we have no user to show yet
   if (loading && !user) {
-    // Only full-screen block when we have no cached user yet
     body = (
-      <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-3 text-slate-300">
+      <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-3 px-4 text-slate-300">
         <p>불러오는 중…</p>
         <p className="text-xs text-slate-500">잠시만 기다려 주세요</p>
+        <button
+          type="button"
+          className="mt-2 text-sm text-sky-300 underline"
+          onClick={() => {
+            const cached = getStoredSession();
+            if (cached?.id) setUser(sessionToUser(cached));
+            setLoading(false);
+            void refresh();
+          }}
+        >
+          계속하기
+        </button>
       </div>
     );
   } else if (!loading && !user && !isPublic) {
     body = (
-      <div className="flex min-h-[100dvh] items-center justify-center text-slate-300">
-        로그인 페이지로 이동 중…
+      <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-3 px-4 text-slate-300">
+        <p>로그인 페이지로 이동 중…</p>
+        {showLoginLink && (
+          <Link href="/login" className="text-sm text-sky-300 underline">
+            로그인이 안 되면 여기를 눌러 주세요
+          </Link>
+        )}
       </div>
     );
   }

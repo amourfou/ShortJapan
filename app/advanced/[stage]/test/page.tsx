@@ -14,6 +14,7 @@ import {
   countKanjiForReadingMode,
   kanjiChoiceScriptLabel,
   kanjiReadingModeLabel,
+  timerSecondsForPrompt,
   type KanjiChoiceScript,
   type KanjiReadingMode,
 } from "@/lib/testEngine";
@@ -212,9 +213,11 @@ function KanjiTestInner() {
       speechEnabled={speechEnabled}
       setupPanel={setupPanel}
       choicesUseJpFont={choiceScript === "ja"}
+      timerSeconds={(item) => timerSecondsForPrompt(item.prompt)}
       readyHints={[
         `읽는 법: ${kanjiReadingModeLabel(readingMode)}`,
         `보기: ${kanjiChoiceScriptLabel(choiceScript)}`,
+        "글자가 길수록 타이머가 조금 더 길어요",
       ]}
       settings={{
         stage: stageId,

@@ -3,9 +3,11 @@ import type {
   KanjiItem,
   KanjiReading,
   SentenceItem,
+  SentenceScriptMode,
   StudyLevel,
   WordItem,
 } from "@/lib/types";
+import { sentenceDisplay } from "@/lib/data/sentences";
 import type { WrongStatRow } from "@/lib/supabase";
 
 export const TEST_QUESTION_COUNT = 20;
@@ -38,8 +40,16 @@ export function wordToQuiz(w: WordItem): QuizItem {
   return { id: w.id, prompt: w.word, answer: w.readingKo, label: w.meaningKo };
 }
 
-export function sentenceToQuiz(s: SentenceItem): QuizItem {
-  return { id: s.id, prompt: s.sentence, answer: s.readingKo, label: s.meaningKo };
+export function sentenceToQuiz(
+  s: SentenceItem,
+  mode: SentenceScriptMode = "hira"
+): QuizItem {
+  return {
+    id: s.id,
+    prompt: sentenceDisplay(s, mode),
+    answer: s.readingKo,
+    label: s.meaningKo,
+  };
 }
 
 /** @deprecated Prefer buildKanjiQuizPool with reading mode + script. */
@@ -184,36 +194,152 @@ export function buildTestQueue(
   return selected;
 }
 
+function shuffleInPlace<T>(arr: T[]): T[] {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+/**
+ * Build a distractor of exact `len` using real answer material (slice/concat)
+ * so length matches without looking like random padding.
+ */
+function forceAnswerLength(
+  source: string,
+  len: number,
+  avoid: Set<string>,
+  material: string[] = []
+): string {
+  const pads = ["우", "이", "아", "오", "에", "요", "와", "스", "카", "토", "시", "마", "루", "쿠"];
+  const clean = (s: string) => s.replace(/\s/g, "");
+
+  const tryOnce = (seed: number): string => {
+    // Prefer a random window from a long enough string (source or material)
+    const longOnes = [source, ...material]
+      .map(clean)
+      .filter((s) => s.length >= len);
+    if (longOnes.length > 0) {
+      const pick = longOnes[seed % longOnes.length];
+      const maxStart = pick.length - len;
+      const start = maxStart > 0 ? (seed * 7) % (maxStart + 1) : 0;
+      return pick.slice(start, start + len);
+    }
+    // Concatenate real readings then slice
+    const bag = shuffleInPlace(
+      [source, ...material].map(clean).filter(Boolean)
+    ).join("");
+    if (bag.length >= len) {
+      const start = bag.length > len ? (seed * 3) % (bag.length - len + 1) : 0;
+      return bag.slice(start, start + len);
+    }
+    let base = clean(source);
+    if (base.length > len) base = base.slice(0, len);
+    let n = 0;
+    while (base.length < len) {
+      base += pads[(seed + n) % pads.length];
+      n += 1;
+    }
+    return base;
+  };
+
+  let out = tryOnce(0);
+  let guard = 0;
+  while ((avoid.has(out) || out.length !== len) && guard < 40) {
+    out = tryOnce(guard + 1);
+    if (avoid.has(out) || out.length !== len) {
+      // last-char nudge
+      const baseStr = out.length === len ? out : tryOnce(guard + 11);
+      const chars = Array.from(baseStr);
+      while (chars.length < len) chars.push(pads[chars.length % pads.length]);
+      const trimmed = chars.slice(0, len);
+      trimmed[len - 1] = pads[guard % pads.length];
+      out = trimmed.join("");
+    }
+    guard += 1;
+  }
+  return out;
+}
+
+export interface BuildChoicesOptions {
+  /**
+   * When true, every choice has the same character length as the correct answer
+   * (so kids can't guess from length alone). Used for intermediate word tests.
+   */
+  matchLength?: boolean;
+}
+
 /** Build 4 choices: correct + random wrong answers from pool. */
 export function buildChoices(
   correct: string,
   poolAnswers: string[],
-  count: number = CHOICE_COUNT
+  count: number = CHOICE_COUNT,
+  options: BuildChoicesOptions = {}
 ): string[] {
-  const unique = Array.from(new Set(poolAnswers.filter((a) => a !== correct)));
-  // shuffle unique
-  for (let i = unique.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [unique[i], unique[j]] = [unique[j], unique[i]];
+  const need = count - 1;
+  const targetLen = correct.length;
+  const unique = Array.from(
+    new Set(poolAnswers.filter((a) => a && a !== correct))
+  );
+
+  let candidates: string[];
+  if (options.matchLength) {
+    // Prefer real answers with the same length
+    const sameLen = unique.filter((a) => a.length === targetLen);
+    candidates = shuffleInPlace([...sameLen]);
+
+    // If not enough same-length real answers, reshape other pool strings
+    if (candidates.length < need) {
+      const others = shuffleInPlace(
+        unique.filter((a) => a.length !== targetLen)
+      );
+      const used = new Set<string>([correct, ...candidates]);
+      for (const o of others) {
+        if (candidates.length >= need) break;
+        const forced = forceAnswerLength(o, targetLen, used, unique);
+        if (!used.has(forced) && forced.length === targetLen) {
+          candidates.push(forced);
+          used.add(forced);
+        }
+      }
+    }
+  } else {
+    candidates = shuffleInPlace([...unique]);
   }
-  const distractors = unique.slice(0, count - 1);
-  // pad if not enough
-  while (distractors.length < count - 1) {
-    distractors.push(`?${distractors.length}`);
+
+  const distractors = candidates.slice(0, need);
+  const used = new Set<string>([correct, ...distractors]);
+  // Final pad (rare lengths with tiny pools)
+  let padIdx = 0;
+  while (distractors.length < need) {
+    const forced = forceAnswerLength(correct, targetLen, used, unique);
+    if (!used.has(forced) && forced.length === targetLen) {
+      distractors.push(forced);
+      used.add(forced);
+    }
+    padIdx += 1;
+    if (padIdx > 50) break;
   }
-  const choices = [correct, ...distractors];
-  for (let i = choices.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [choices[i], choices[j]] = [choices[j], choices[i]];
-  }
+
+  const choices = shuffleInPlace([correct, ...distractors]);
   return choices;
 }
 
-/** Advanced practice/test: timer scales with sentence length. */
+/**
+ * Timer scales with prompt length (intermediate words, kanji compounds, sentences).
+ * Short (1–2 chars): 5s. Each extra character adds 1s. Cap 14s.
+ * e.g. 3→6s, 5→8s, 8→11s, 10+→14s
+ */
+export function timerSecondsForPrompt(text: string): number {
+  const len = text.replace(/\s/g, "").length;
+  if (len <= 2) return 5;
+  return Math.min(14, 5 + (len - 2));
+}
+
+/** @deprecated Use timerSecondsForPrompt */
 export function timerSecondsForSentence(sentence: string): number {
-  const len = sentence.replace(/\s/g, "").length;
-  // base 5s + 1s per 4 chars, min 5, max 15
-  return Math.min(15, Math.max(5, 5 + Math.floor(Math.max(0, len - 4) / 4)));
+  return timerSecondsForPrompt(sentence);
 }
 
 export function scoreFromResults(correct: number, total: number): number {

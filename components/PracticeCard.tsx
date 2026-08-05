@@ -24,19 +24,20 @@ export function PracticeCard({
           {label}
         </p>
       )}
-      <div className="flex items-center justify-center gap-3 sm:gap-4">
+      <div className="flex w-full min-w-0 items-center justify-center gap-3 sm:gap-4">
         <p
           className={[
-            "font-jp select-none font-bold text-white",
+            "font-jp min-w-0 select-none font-bold text-white",
             size === "char"
               ? "text-[5.5rem] leading-none sm:text-[7rem] md:text-[8rem]"
-              : "break-keep px-1 text-center text-2xl leading-snug sm:text-3xl md:text-4xl",
+              : // Long sentences: wrap within card (Japanese often has no spaces)
+                "w-full max-w-full px-1 text-center text-4xl leading-snug break-words [overflow-wrap:anywhere] sm:text-5xl md:text-6xl",
           ].join(" ")}
         >
           {prompt}
         </p>
         {sideMeaning && (
-          <p className="animate-reveal-pop max-w-[9rem] text-left text-base font-semibold leading-snug text-sky-200 sm:max-w-[12rem] sm:text-lg">
+          <p className="animate-reveal-pop max-w-[9rem] shrink-0 text-left text-base font-semibold leading-snug text-sky-200 sm:max-w-[12rem] sm:text-lg">
             <span className="font-medium text-slate-400">뜻:</span>
             {sideMeaning}
           </p>

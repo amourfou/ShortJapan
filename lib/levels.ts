@@ -27,9 +27,10 @@ export const LEVELS: LevelInfo[] = [
   },
   {
     id: "native",
-    title: "문장",
-    description: "한자 섞인 문장 (준비중)",
-    available: false,
+    title: "최고급",
+    description: "문장 읽기 · 히라→카타→한자",
+    href: "/native",
+    available: true,
     accent: "from-rose-400 to-pink-500",
   },
 ];

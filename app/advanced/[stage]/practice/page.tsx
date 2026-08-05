@@ -11,7 +11,7 @@ import { PracticeCard } from "@/components/PracticeCard";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { useAutoSpeech } from "@/hooks/useAutoSpeech";
 import { getKanjiStage, isKanjiStageId, kanjiSpeechAnswers } from "@/lib/data/kanji";
-import { filterKanji, pickRandomKanji } from "@/lib/practice";
+import { filterKanji, pickRandomKanji, timerSecondsForText } from "@/lib/practice";
 import { matchesSpokenAnswer } from "@/lib/speechRecognition";
 import type { KanjiItem } from "@/lib/types";
 
@@ -117,6 +117,7 @@ function KanjiPracticeInner() {
           <CountdownTimer
             key={questionKey}
             resetKey={questionKey}
+            seconds={timerSecondsForText(current.char)}
             onComplete={finishRound}
             paused={revealed}
           />

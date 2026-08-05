@@ -11,35 +11,32 @@ import { PracticeCard } from "@/components/PracticeCard";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { useAutoSpeech } from "@/hooks/useAutoSpeech";
 import { allCategoryIds, getCategoryLabel } from "@/lib/data/categories";
+import { SENTENCE_SCRIPT_MODES } from "@/lib/data/sentences";
 import {
-  allRowIds,
-  filterWords,
-  getSoundRows,
+  filterSentences,
   parseCategoryParam,
-  parseWordScriptParam,
-  pickRandomWord,
+  parseSentenceScriptParam,
+  pickRandomSentence,
+  sentenceDisplay,
   timerSecondsForText,
 } from "@/lib/practice";
 import { matchesSpokenAnswer } from "@/lib/speechRecognition";
-import type { WordItem } from "@/lib/types";
+import type { SentenceItem } from "@/lib/types";
 
-function IntermediatePracticeInner() {
+function NativePracticeInner() {
   const searchParams = useSearchParams();
   const catParam = searchParams.get("cats");
-  const rowParam = searchParams.get("rows");
   const scriptParam = searchParams.get("script");
   const speechEnabled = searchParams.get("speech") === "1";
+  const scriptMode = parseSentenceScriptParam(scriptParam);
 
   const pool = useMemo(() => {
     const cats = parseCategoryParam(catParam);
-    const rows = parseCategoryParam(rowParam);
-    const script = parseWordScriptParam(scriptParam);
     const selectedCats = cats.length > 0 ? cats : allCategoryIds();
-    const selectedRows = rows.length > 0 ? rows : allRowIds(getSoundRows());
-    return filterWords(selectedCats, selectedRows, script);
-  }, [catParam, rowParam, scriptParam]);
+    return filterSentences(selectedCats);
+  }, [catParam]);
 
-  const [current, setCurrent] = useState<WordItem | null>(null);
+  const [current, setCurrent] = useState<SentenceItem | null>(null);
   const [revealed, setRevealed] = useState(false);
   const [round, setRound] = useState(0);
   const [heard, setHeard] = useState("");
@@ -48,13 +45,16 @@ function IntermediatePracticeInner() {
 
   const questionKey = current ? `${current.id}-${round}` : "none";
   const speech = useAutoSpeech(speechEnabled && !!current && !revealed, questionKey);
+  const prompt = current ? sentenceDisplay(current, scriptMode) : "";
+  const modeLabel =
+    SENTENCE_SCRIPT_MODES.find((m) => m.id === scriptMode)?.label ?? scriptMode;
 
   useEffect(() => {
     if (pool.length === 0) {
       setCurrent(null);
       return;
     }
-    setCurrent(pickRandomWord(pool, null));
+    setCurrent(pickRandomSentence(pool, null));
     setRevealed(false);
     setRound(0);
     setHeard("");
@@ -65,7 +65,7 @@ function IntermediatePracticeInner() {
   const goNext = useCallback(() => {
     if (pool.length === 0) return;
     gradingRef.current = false;
-    setCurrent((prev) => pickRandomWord(pool, prev));
+    setCurrent((prev) => pickRandomSentence(pool, prev));
     setRevealed(false);
     setHeard("");
     setIsCorrect(null);
@@ -87,12 +87,10 @@ function IntermediatePracticeInner() {
 
   if (pool.length === 0) {
     return (
-      <PageShell title="중급 연습" backHref="/intermediate">
+      <PageShell title="최고급 연습" backHref="/native">
         <div className="flex flex-1 flex-col items-center justify-center gap-4 text-center">
-          <p className="text-slate-300">
-            선택한 상황·음차 조건에 맞는 단어가 없어요.
-          </p>
-          <Link href="/intermediate" className="text-sky-300 underline">
+          <p className="text-slate-300">선택한 상황에 맞는 문장이 없어요.</p>
+          <Link href="/native" className="text-sky-300 underline">
             설정으로 돌아가기
           </Link>
         </div>
@@ -102,7 +100,7 @@ function IntermediatePracticeInner() {
 
   if (!current) {
     return (
-      <PageShell title="중급 연습" backHref="/intermediate">
+      <PageShell title="최고급 연습" backHref="/native">
         <p className="text-center text-slate-300">준비 중…</p>
       </PageShell>
     );
@@ -110,27 +108,25 @@ function IntermediatePracticeInner() {
 
   return (
     <PageShell
-      title="중급 연습"
-      subtitle={
-        speechEnabled
-          ? "타이머 동안 읽는 법을 말해 보세요"
-          : "타이머 후 정답 확인"
-      }
-      backHref="/intermediate"
+      title="최고급 연습"
+      subtitle={`${modeLabel} · ${
+        speechEnabled ? "타이머 동안 읽어 보세요" : "타이머 후 정답 확인"
+      }`}
+      backHref="/native"
     >
       <div className="flex flex-1 flex-col gap-5">
         <div className="flex justify-center">
           <CountdownTimer
             key={questionKey}
             resetKey={questionKey}
-            seconds={timerSecondsForText(current.word)}
+            seconds={timerSecondsForText(prompt)}
             onComplete={finishRound}
             paused={revealed}
           />
         </div>
 
         <PracticeCard
-          prompt={current.word}
+          prompt={prompt}
           label={getCategoryLabel(current.categoryId)}
           size="word"
         />
@@ -155,7 +151,7 @@ function IntermediatePracticeInner() {
 
         <div className="mt-auto space-y-2 pt-2">
           <PrimaryButton onClick={goNext} disabled={!revealed}>
-            다음 단어
+            다음 문장
           </PrimaryButton>
           <PrimaryButton variant="ghost" onClick={finishRound} disabled={revealed}>
             지금 채점하기
@@ -166,16 +162,16 @@ function IntermediatePracticeInner() {
   );
 }
 
-export default function IntermediatePracticePage() {
+export default function NativePracticePage() {
   return (
     <Suspense
       fallback={
-        <PageShell title="중급 연습" backHref="/intermediate">
+        <PageShell title="최고급 연습" backHref="/native">
           <p className="text-center text-slate-300">불러오는 중…</p>
         </PageShell>
       }
     >
-      <IntermediatePracticeInner />
+      <NativePracticeInner />
     </Suspense>
   );
 }

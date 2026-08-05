@@ -14,7 +14,7 @@ export interface DbUser {
   updated_at: string;
 }
 
-export type StudyLevel = "beginner" | "intermediate" | "advanced";
+export type StudyLevel = "beginner" | "intermediate" | "advanced" | "native";
 
 export interface BeginnerSettings {
   script: "hiragana" | "katakana";

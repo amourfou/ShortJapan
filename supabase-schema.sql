@@ -76,3 +76,19 @@ DROP TRIGGER IF EXISTS trg_sj_settings_updated ON shortjapan_settings;
 CREATE TRIGGER trg_sj_settings_updated
   BEFORE UPDATE ON shortjapan_settings
   FOR EACH ROW EXECUTE FUNCTION update_sj_settings_updated_at();
+
+-- 5. Web Push subscriptions (free VAPID / browser push)
+CREATE TABLE IF NOT EXISTS shortjapan_push_subscriptions (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  endpoint TEXT NOT NULL UNIQUE,
+  p256dh TEXT NOT NULL,
+  auth TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_sj_push_user ON shortjapan_push_subscriptions(user_id);
+
+ALTER TABLE shortjapan_push_subscriptions ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "sj_push_all" ON shortjapan_push_subscriptions FOR ALL USING (true) WITH CHECK (true);

@@ -1,5 +1,6 @@
 "use client";
 
+import { FancyCheck, fancyCheckCardClass } from "@/components/FancyCheck";
 import type { SituationCategory } from "@/lib/data/categories";
 
 interface CategoryCheckboxGroupProps {
@@ -55,21 +56,14 @@ export function CategoryCheckboxGroup({
           const checked = selectedSet.has(cat.id);
           const count = counts?.[cat.id];
           return (
-            <label
+            <button
               key={cat.id}
-              className={[
-                "flex min-h-[3.25rem] cursor-pointer items-start gap-2 rounded-2xl border px-2.5 py-2 transition touch-manipulation sm:gap-3 sm:px-3 sm:py-2.5",
-                checked
-                  ? "border-violet-400/50 bg-violet-500/15"
-                  : "border-white/10 bg-white/5 hover:bg-white/10",
-              ].join(" ")}
+              type="button"
+              onClick={() => toggle(cat.id)}
+              aria-pressed={checked}
+              className={fancyCheckCardClass(checked, "violet")}
             >
-              <input
-                type="checkbox"
-                checked={checked}
-                onChange={() => toggle(cat.id)}
-                className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-400 text-violet-500 focus:ring-violet-400 sm:h-5 sm:w-5"
-              />
+              <FancyCheck checked={checked} accent="violet" />
               <span className="min-w-0 flex-1">
                 <span className="flex items-start justify-between gap-1">
                   <span className="block text-xs font-semibold leading-tight text-white sm:text-sm">
@@ -85,7 +79,7 @@ export function CategoryCheckboxGroup({
                   {cat.description}
                 </span>
               </span>
-            </label>
+            </button>
           );
         })}
       </div>

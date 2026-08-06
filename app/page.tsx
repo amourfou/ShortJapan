@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { BarChart3, LogOut } from "lucide-react";
 import { LevelCard } from "@/components/LevelCard";
+import { PushNotifyCard } from "@/components/PushNotifyCard";
 import { useAuth } from "@/components/AuthProvider";
 import { LEVELS } from "@/lib/levels";
 
@@ -43,7 +44,7 @@ export default function HomePage() {
 
       <Link
         href="/stats"
-        className="mb-5 flex items-center gap-3 rounded-2xl border border-violet-400/30 bg-violet-500/15 px-4 py-3.5 touch-manipulation transition hover:bg-violet-500/25"
+        className="mb-3 flex items-center gap-3 rounded-2xl border border-violet-400/30 bg-violet-500/15 px-4 py-3.5 touch-manipulation transition hover:bg-violet-500/25"
       >
         <BarChart3 className="h-6 w-6 shrink-0 text-violet-300" />
         <div>
@@ -51,6 +52,10 @@ export default function HomePage() {
           <p className="text-xs text-slate-300">점수 그래프 · 틀린 문제 분포</p>
         </div>
       </Link>
+
+      <div className="mb-5">
+        <PushNotifyCard />
+      </div>
 
       <section className="grid grid-cols-2 gap-3">
         {LEVELS.map((level) => (

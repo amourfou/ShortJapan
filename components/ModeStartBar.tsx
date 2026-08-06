@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { FancyCheck } from "@/components/FancyCheck";
 import { PrimaryButton } from "@/components/PrimaryButton";
 
 interface ModeStartBarProps {
@@ -44,15 +45,20 @@ export function ModeStartBar({
         </PrimaryButton>
       </div>
 
-      <label className="flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 touch-manipulation">
-        <input
-          type="checkbox"
-          checked={speechEnabled}
-          onChange={(e) => onSpeechChange(e.target.checked)}
-          className="h-4 w-4 rounded border-slate-400 text-sky-500 focus:ring-sky-400"
-        />
+      <button
+        type="button"
+        onClick={() => onSpeechChange(!speechEnabled)}
+        aria-pressed={speechEnabled}
+        className={[
+          "flex w-full cursor-pointer items-center justify-center gap-2.5 rounded-2xl border px-3 py-2.5 touch-manipulation transition",
+          speechEnabled
+            ? "border-sky-400/45 bg-sky-500/15"
+            : "border-white/10 bg-white/5 hover:bg-white/10",
+        ].join(" ")}
+      >
+        <FancyCheck checked={speechEnabled} accent="sky" className="mt-0" size="sm" />
         <span className="text-sm text-slate-200">말하기 인식</span>
-      </label>
+      </button>
 
       {summary && (
         <p className="text-center text-sm text-slate-300">{summary}</p>

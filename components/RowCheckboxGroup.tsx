@@ -1,5 +1,6 @@
 "use client";
 
+import { FancyCheck, fancyCheckCardClass } from "@/components/FancyCheck";
 import type { KanaRow } from "@/lib/types";
 
 interface RowCheckboxGroupProps {
@@ -48,21 +49,17 @@ export function RowCheckboxGroup({
         {rows.map((row) => {
           const checked = selectedSet.has(row.id);
           return (
-            <label
+            <button
               key={row.id}
+              type="button"
+              onClick={() => toggle(row.id)}
+              aria-pressed={checked}
               className={[
-                "flex min-h-[3.25rem] cursor-pointer items-center gap-2 rounded-2xl border px-2.5 py-2 transition touch-manipulation sm:gap-3 sm:px-3 sm:py-2.5",
-                checked
-                  ? "border-sky-400/50 bg-sky-500/15"
-                  : "border-white/10 bg-white/5 hover:bg-white/10",
+                fancyCheckCardClass(checked, "sky"),
+                "items-center",
               ].join(" ")}
             >
-              <input
-                type="checkbox"
-                checked={checked}
-                onChange={() => toggle(row.id)}
-                className="h-4 w-4 shrink-0 rounded border-slate-400 text-sky-500 focus:ring-sky-400 sm:h-5 sm:w-5"
-              />
+              <FancyCheck checked={checked} accent="sky" className="mt-0" />
               <span className="min-w-0">
                 <span className="block text-xs font-semibold leading-tight text-white sm:text-sm">
                   {row.labelKo}
@@ -71,7 +68,7 @@ export function RowCheckboxGroup({
                   {row.labelJa}
                 </span>
               </span>
-            </label>
+            </button>
           );
         })}
       </div>

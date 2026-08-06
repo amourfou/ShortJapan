@@ -25,6 +25,118 @@ const LEVEL_LABEL: Record<StudyLevel, string> = {
   native: "최고급",
 };
 
+type ScoreDetail = {
+  score: number;
+  level: string;
+  time: string;
+};
+
+type DayScorePoint = {
+  dateKey: string;
+  label: string;
+  /** Daily average (graph Y) */
+  score: number;
+  count: number;
+  details: ScoreDetail[];
+};
+
+function localDateKey(iso: string): string {
+  const d = new Date(iso);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function formatDayLabel(dateKey: string): string {
+  const [y, m, d] = dateKey.split("-").map(Number);
+  const date = new Date(y, m - 1, d);
+  return date.toLocaleDateString("ko-KR", {
+    month: "short",
+    day: "numeric",
+  });
+}
+
+function formatTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString("ko-KR", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+/** Group sessions by local calendar day; Y = average score that day. */
+function buildDailyScoreSeries(sessions: TestSessionRow[]): DayScorePoint[] {
+  const byDay = new Map<string, TestSessionRow[]>();
+  for (const s of sessions) {
+    const key = localDateKey(s.played_at);
+    const list = byDay.get(key);
+    if (list) list.push(s);
+    else byDay.set(key, [s]);
+  }
+
+  const keys = Array.from(byDay.keys()).sort();
+  return keys.map((dateKey) => {
+    const rows = (byDay.get(dateKey) ?? []).slice().sort(
+      (a, b) => new Date(a.played_at).getTime() - new Date(b.played_at).getTime()
+    );
+    const sum = rows.reduce((acc, r) => acc + r.score, 0);
+    const avg = rows.length ? Math.round(sum / rows.length) : 0;
+    return {
+      dateKey,
+      label: formatDayLabel(dateKey),
+      score: avg,
+      count: rows.length,
+      details: rows.map((r) => ({
+        score: r.score,
+        level: LEVEL_LABEL[r.level as StudyLevel] ?? r.level,
+        time: formatTime(r.played_at),
+      })),
+    };
+  });
+}
+
+function ScoreDayTooltip({
+  active,
+  payload,
+}: {
+  active?: boolean;
+  payload?: Array<{ payload?: DayScorePoint }>;
+}) {
+  if (!active || !payload?.length) return null;
+  const point = payload[0]?.payload;
+  if (!point) return null;
+
+  return (
+    <div className="max-w-[14rem] rounded-xl border border-slate-600 bg-slate-900 px-3 py-2 shadow-lg">
+      <p className="text-xs font-semibold text-slate-200">
+        {point.label}
+        <span className="ml-1 font-normal text-slate-400">
+          · {point.count}회
+        </span>
+      </p>
+      <p className="mt-1 text-sm font-bold text-sky-300">
+        평균 {point.score}점
+      </p>
+      <ul className="mt-1.5 max-h-36 space-y-1 overflow-y-auto border-t border-white/10 pt-1.5">
+        {point.details.map((d, i) => (
+          <li
+            key={`${d.time}-${d.score}-${i}`}
+            className="flex items-center justify-between gap-2 text-[11px] text-slate-300"
+          >
+            <span className="text-slate-400">
+              {d.time}
+              <span className="ml-1 text-slate-500">{d.level}</span>
+            </span>
+            <span className="font-semibold tabular-nums text-white">
+              {d.score}점
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 export default function StatsPage() {
   const { user } = useAuth();
   const [sessions, setSessions] = useState<TestSessionRow[]>([]);
@@ -45,7 +157,7 @@ export default function StatsPage() {
       setLoading(true);
       try {
         const [s, w] = await Promise.all([
-          getTestSessions(user.id, undefined, 50),
+          getTestSessions(user.id, undefined, 200),
           getWrongStats(user.id),
         ]);
         if (!cancelled) {
@@ -70,17 +182,10 @@ export default function StatsPage() {
     return sessions.filter((s) => s.level === levelFilter);
   }, [sessions, levelFilter]);
 
-  const scoreSeries = useMemo(() => {
-    return filteredSessions.map((s, i) => ({
-      idx: i + 1,
-      score: s.score,
-      label: new Date(s.played_at).toLocaleDateString("ko-KR", {
-        month: "short",
-        day: "numeric",
-      }),
-      level: LEVEL_LABEL[s.level as StudyLevel] ?? s.level,
-    }));
-  }, [filteredSessions]);
+  const scoreSeries = useMemo(
+    () => buildDailyScoreSeries(filteredSessions),
+    [filteredSessions]
+  );
 
   const wrongBars = useMemo(() => {
     let list = wrongs;
@@ -144,9 +249,12 @@ export default function StatsPage() {
             </div>
 
             <section className="rounded-2xl border border-white/10 bg-black/20 p-3">
-              <h2 className="mb-3 text-sm font-semibold text-slate-200">
+              <h2 className="mb-1 text-sm font-semibold text-slate-200">
                 점수 상승 그래프
               </h2>
+              <p className="mb-3 text-[11px] text-slate-500">
+                날짜별 평균 · 점을 누르면 그날 점수 내역
+              </p>
               {scoreSeries.length === 0 ? (
                 <p className="py-8 text-center text-sm text-slate-500">
                   아직 테스트 기록이 없어요
@@ -156,21 +264,23 @@ export default function StatsPage() {
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={scoreSeries}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                      <XAxis dataKey="label" tick={{ fill: "#94a3b8", fontSize: 11 }} />
-                      <YAxis domain={[0, 100]} tick={{ fill: "#94a3b8", fontSize: 11 }} />
-                      <Tooltip
-                        contentStyle={{
-                          background: "#0f172a",
-                          border: "1px solid #334155",
-                          borderRadius: 12,
-                        }}
+                      <XAxis
+                        dataKey="label"
+                        tick={{ fill: "#94a3b8", fontSize: 11 }}
                       />
+                      <YAxis
+                        domain={[0, 100]}
+                        tick={{ fill: "#94a3b8", fontSize: 11 }}
+                      />
+                      <Tooltip content={<ScoreDayTooltip />} />
                       <Line
                         type="monotone"
                         dataKey="score"
+                        name="평균 점수"
                         stroke="#38bdf8"
                         strokeWidth={2}
                         dot={{ r: 3, fill: "#38bdf8" }}
+                        activeDot={{ r: 5 }}
                       />
                     </LineChart>
                   </ResponsiveContainer>

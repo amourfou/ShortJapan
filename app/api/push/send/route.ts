@@ -1,12 +1,17 @@
 import { NextResponse } from "next/server";
-import { sendPushToAll, sendPushToUser, type PushPayload } from "@/lib/push";
+import {
+  sendPushToAll,
+  sendPushToUser,
+  type PushPayload,
+  type PushSubscriptionJSON,
+} from "@/lib/push";
 
 export const runtime = "nodejs";
 
 /**
  * Send free Web Push.
- * - Self test: { userId, title?, body? }
- * - Broadcast (cron): Authorization: Bearer PUSH_CRON_SECRET
+ * - Self test: { userId, title?, body?, subscription? }
+ * - Broadcast (cron): Authorization: Bearer CRON_SECRET
  */
 export async function POST(req: Request) {
   try {
@@ -24,6 +29,8 @@ export async function POST(req: Request) {
       body?: string;
       url?: string;
       all?: boolean;
+      /** Live browser subscription — used for test even if DB empty */
+      subscription?: PushSubscriptionJSON;
     };
 
     const payload: PushPayload = {
@@ -45,7 +52,25 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "userId required" }, { status: 400 });
     }
 
-    const result = await sendPushToUser(body.userId, payload);
+    const result = await sendPushToUser(
+      body.userId,
+      payload,
+      body.subscription ?? null
+    );
+
+    if (result.sent === 0) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            result.details[0] ||
+            "전송된 기기가 없어요. 알림을 다시 켜 보거나 VAPID 키·DB 테이블을 확인하세요.",
+          ...result,
+        },
+        { status: 502 }
+      );
+    }
+
     return NextResponse.json({ ok: true, ...result });
   } catch (e) {
     console.error("POST /api/push/send", e);
@@ -60,7 +85,6 @@ export async function GET(req: Request) {
   const cronSecret =
     process.env.CRON_SECRET || process.env.PUSH_CRON_SECRET || "";
   if (!cronSecret || auth !== `Bearer ${cronSecret}`) {
-    // Also allow ?secret= for simple cron setups
     const url = new URL(req.url);
     if (!cronSecret || url.searchParams.get("secret") !== cronSecret) {
       return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -68,13 +92,18 @@ export async function GET(req: Request) {
   }
 
   try {
+    // Cron: 10:00 UTC = 19:00 KST (매일 저녁 7시)
     const result = await sendPushToAll({
       title: "ShortJapan",
-      body: "오늘도 짧게 일본어 연습해 볼까요?",
+      body: "저녁 연습 시간이에요! 오늘도 짧게 일본어 해볼까요?",
       url: "/",
       tag: "shortjapan-daily",
     });
-    return NextResponse.json({ ok: true, ...result });
+    return NextResponse.json({
+      ok: true,
+      schedule: "daily 19:00 KST",
+      ...result,
+    });
   } catch (e) {
     console.error("GET /api/push/send", e);
     return NextResponse.json({ error: "server error" }, { status: 500 });

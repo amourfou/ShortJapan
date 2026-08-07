@@ -77,18 +77,26 @@ CREATE TRIGGER trg_sj_settings_updated
   BEFORE UPDATE ON shortjapan_settings
   FOR EACH ROW EXECUTE FUNCTION update_sj_settings_updated_at();
 
--- 5. Web Push subscriptions (free VAPID / browser push)
-CREATE TABLE IF NOT EXISTS shortjapan_push_subscriptions (
+-- 5. Web Push (shared table — also used by WordCatch)
+-- Prefer running WordCatch supabase-migration-push-subscriptions-unified.sql once.
+CREATE TABLE IF NOT EXISTS push_subscriptions (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  app TEXT NOT NULL,
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  endpoint TEXT NOT NULL UNIQUE,
+  endpoint TEXT NOT NULL,
   p256dh TEXT NOT NULL,
   auth TEXT NOT NULL,
+  remind_hour_kst INTEGER NOT NULL DEFAULT 19
+    CHECK (remind_hour_kst >= 0 AND remind_hour_kst <= 23),
+  last_notified_on DATE,
   created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (app, endpoint)
 );
 
-CREATE INDEX IF NOT EXISTS idx_sj_push_user ON shortjapan_push_subscriptions(user_id);
+CREATE INDEX IF NOT EXISTS idx_push_subs_app_user ON push_subscriptions(app, user_id);
+CREATE INDEX IF NOT EXISTS idx_push_subs_app_hour ON push_subscriptions(app, remind_hour_kst);
 
-ALTER TABLE shortjapan_push_subscriptions ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "sj_push_all" ON shortjapan_push_subscriptions FOR ALL USING (true) WITH CHECK (true);
+ALTER TABLE push_subscriptions ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "push_subs_all" ON push_subscriptions;
+CREATE POLICY "push_subs_all" ON push_subscriptions FOR ALL USING (true) WITH CHECK (true);

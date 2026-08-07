@@ -15,14 +15,14 @@ export async function POST(req: Request) {
       subscription?: PushSubscriptionJSON;
     };
     if (!body.userId || !body.subscription) {
-      return NextResponse.json({ error: "userId and subscription required" }, { status: 400 });
-    }
-    const ok = await savePushSubscription(body.userId, body.subscription);
-    if (!ok) {
       return NextResponse.json(
-        { error: "저장 실패. Supabase 테이블 shortjapan_push_subscriptions 를 확인해 주세요." },
-        { status: 500 }
+        { error: "userId and subscription required" },
+        { status: 400 }
       );
+    }
+    const result = await savePushSubscription(body.userId, body.subscription);
+    if (!result.ok) {
+      return NextResponse.json({ error: result.error }, { status: 500 });
     }
     return NextResponse.json({ ok: true });
   } catch (e) {

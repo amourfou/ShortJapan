@@ -43,3 +43,7 @@ public/workbox-*.js.map
 public/swe-worker-*.js
 public/swe-worker-*.js.map
 public/fallback-*.js
+
+# PWA custom worker (generated)
+public/worker-*.js
+public/worker-*.js.map

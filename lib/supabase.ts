@@ -1,17 +1,11 @@
-import { createClient } from "@supabase/supabase-js";
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
-
-export const supabase = createClient(supabaseUrl, supabaseKey);
+/** Shared types only. The browser never talks to Supabase directly; see app/api/* and lib/server/*. */
 
 export interface DbUser {
   id: string;
   name: string;
   organization: string;
-  high_score: number;
-  created_at: string;
-  updated_at: string;
+  role: string | null;
+  isAdmin: boolean;
 }
 
 export type StudyLevel = "beginner" | "intermediate" | "advanced" | "native";

@@ -23,3 +23,9 @@ body {
     padding-bottom: max(1rem, var(--safe-bottom));
   }
 }
+
+@keyframes pinshake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-10px); }
+  40%, 80% { transform: translateX(10px); }
+}

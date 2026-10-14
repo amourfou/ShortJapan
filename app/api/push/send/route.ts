@@ -1,109 +1,59 @@
 import { NextResponse } from "next/server";
-import {
-  sendPushToAll,
-  sendPushToUser,
-  type PushPayload,
-  type PushSubscriptionJSON,
-} from "@/lib/push";
+import { sendPushToAll, sendPushToUser, type PushPayload } from "@/lib/push";
+import { isCronAuthorized } from "@/lib/server/cron";
+import { ApiError } from "@/lib/server/db";
+import { assertSameOrigin, fail, readJson } from "@/lib/server/respond";
+import { requireAdmin, requireUser } from "@/lib/server/session";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+/** Fixed server-side templates; clients can only pick an id. URLs are same-origin paths. */
+const TEMPLATES: Record<string, PushPayload> = {
+  test: { title: "ShortJapan", body: "알림이 잘 와요! 오늘도 일본어 연습해 볼까요?", url: "/", tag: "shortjapan-test" },
+  daily: { title: "ShortJapan", body: "저녁 연습 시간이에요! 오늘도 짧게 일본어 해볼까요?", url: "/", tag: "shortjapan-daily" },
+};
+
+/** Only "/path" style same-origin URLs (no "//host", no schemes). */
+function safePath(u: unknown): string {
+  if (typeof u !== "string" || !u.startsWith("/") || u.startsWith("//") || u.includes("\\")) return "/";
+  return u.slice(0, 200);
+}
 
 /**
- * Send free Web Push.
- * - Self test: { userId, title?, body?, subscription? }
- * - Broadcast (cron): Authorization: Bearer CRON_SECRET
+ * POST { template?: "test" } → sends to the logged-in user's own devices.
+ * POST { template: "daily", all: true } → admin broadcast.
  */
 export async function POST(req: Request) {
   try {
-    const auth = req.headers.get("authorization") || "";
-    const cronSecret =
-      process.env.CRON_SECRET || process.env.PUSH_CRON_SECRET || "";
-    const isCron =
-      !!cronSecret &&
-      (auth === `Bearer ${cronSecret}` ||
-        req.headers.get("x-cron-secret") === cronSecret);
+    assertSameOrigin(req);
+    const body = await readJson<{ template?: unknown; url?: unknown; all?: unknown }>(req);
+    const id = typeof body.template === "string" ? body.template : "test";
+    const tpl = TEMPLATES[id];
+    if (!tpl) throw new ApiError(400, "알 수 없는 알림 종류예요.");
+    const payload = { ...tpl, url: safePath(body.url ?? tpl.url) };
 
-    const body = (await req.json().catch(() => ({}))) as {
-      userId?: string;
-      title?: string;
-      body?: string;
-      url?: string;
-      all?: boolean;
-      /** Live browser subscription — used for test even if DB empty */
-      subscription?: PushSubscriptionJSON;
-    };
-
-    const payload: PushPayload = {
-      title: body.title || "ShortJapan",
-      body: body.body || "오늘도 일본어 연습해 볼까요?",
-      url: body.url || "/",
-      tag: "shortjapan-remind",
-    };
-
-    if (isCron || body.all) {
-      if (!isCron) {
-        return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-      }
-      const result = await sendPushToAll(payload);
-      return NextResponse.json({ ok: true, ...result });
+    if (body.all === true) {
+      await requireAdmin();
+      return NextResponse.json({ ok: true, ...(await sendPushToAll(payload)) });
     }
-
-    if (!body.userId) {
-      return NextResponse.json({ error: "userId required" }, { status: 400 });
-    }
-
-    const result = await sendPushToUser(
-      body.userId,
-      payload,
-      body.subscription ?? null
-    );
-
+    const user = await requireUser();
+    const result = await sendPushToUser(user.id, payload);
     if (result.sent === 0) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error:
-            result.details[0] ||
-            "전송된 기기가 없어요. 알림을 다시 켜 보거나 VAPID 키·DB 테이블을 확인하세요.",
-          ...result,
-        },
-        { status: 502 }
-      );
+      return NextResponse.json({ ok: false, error: result.details[0] || "전송된 기기가 없어요.", sent: 0, total: result.total }, { status: 502 });
     }
-
-    return NextResponse.json({ ok: true, ...result });
+    return NextResponse.json({ ok: true, sent: result.sent, failed: result.failed, total: result.total });
   } catch (e) {
-    console.error("POST /api/push/send", e);
-    const msg = e instanceof Error ? e.message : "server error";
-    return NextResponse.json({ error: msg }, { status: 500 });
+    return fail(e);
   }
 }
 
-/** Vercel Cron can hit GET with Authorization header */
+/** Vercel Cron (10:00 UTC = 19:00 KST). Authorization: Bearer CRON_SECRET only. */
 export async function GET(req: Request) {
-  const auth = req.headers.get("authorization") || "";
-  const cronSecret =
-    process.env.CRON_SECRET || process.env.PUSH_CRON_SECRET || "";
-  if (!cronSecret || auth !== `Bearer ${cronSecret}`) {
-    const url = new URL(req.url);
-    if (!cronSecret || url.searchParams.get("secret") !== cronSecret) {
-      return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-    }
-  }
-
+  if (!isCronAuthorized(req)) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   try {
-    // Cron: 10:00 UTC = 19:00 KST (매일 저녁 7시)
-    const result = await sendPushToAll({
-      title: "ShortJapan",
-      body: "저녁 연습 시간이에요! 오늘도 짧게 일본어 해볼까요?",
-      url: "/",
-      tag: "shortjapan-daily",
-    });
-    return NextResponse.json({
-      ok: true,
-      schedule: "daily 19:00 KST",
-      ...result,
-    });
+    const result = await sendPushToAll(TEMPLATES.daily);
+    return NextResponse.json({ ok: true, schedule: "daily 19:00 KST", ...result });
   } catch (e) {
     console.error("GET /api/push/send", e);
     return NextResponse.json({ error: "server error" }, { status: 500 });

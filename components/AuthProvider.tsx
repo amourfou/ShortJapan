@@ -1,256 +1,121 @@
 "use client";
 
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import {
-  clearUserSession,
-  getStoredSession,
-  getStoredUserId,
-  getUserByIdTimed,
-  loginByName,
-  registerUser,
-  saveUserSession,
-} from "@/lib/auth";
+import { fetchMe, loginWithPin, logoutSession, signup, type LoginOutcome } from "@/lib/auth";
 import type { DbUser } from "@/lib/supabase";
 
 interface AuthContextValue {
   user: DbUser | null;
   loading: boolean;
-  login: (name: string) => Promise<{ ok: boolean; message?: string }>;
-  register: (
-    name: string,
-    organization: string
-  ) => Promise<{ ok: boolean; message?: string }>;
+  signupEnabled: boolean;
+  login: (name: string, pin: string) => Promise<LoginOutcome>;
+  register: (name: string, organization: string, pin: string) => Promise<{ ok: boolean; message?: string }>;
   logout: () => void;
   refresh: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
+const PUBLIC_PATHS = ["/login", "/offline"];
+/** Display-only cache so the app can still render offline. Never used for authorization. */
+const DISPLAY_CACHE = "shortjapan-me";
 
-const PUBLIC_PATHS = ["/login"];
-/** Hard cap so "불러오는 중" never sticks forever */
-const LOADING_SAFETY_MS = 2500;
-const REDIRECT_HINT_MS = 4000;
+function readCache(): DbUser | null {
+  try {
+    const raw = localStorage.getItem(DISPLAY_CACHE);
+    return raw ? (JSON.parse(raw) as DbUser) : null;
+  } catch {
+    return null;
+  }
+}
 
-function sessionToUser(cached: {
-  id: string;
-  name: string;
-  organization: string;
-}): DbUser {
-  return {
-    id: cached.id,
-    name: cached.name || "사용자",
-    organization: cached.organization || "",
-    high_score: 0,
-    created_at: "",
-    updated_at: "",
-  };
+function writeCache(u: DbUser | null) {
+  try {
+    if (u) localStorage.setItem(DISPLAY_CACHE, JSON.stringify(u));
+    else localStorage.removeItem(DISPLAY_CACHE);
+  } catch {
+    /* ignore */
+  }
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<DbUser | null>(null);
   const [loading, setLoading] = useState(true);
-  const [showLoginLink, setShowLoginLink] = useState(false);
+  const [signupEnabled, setSignupEnabled] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
-  const refreshGen = useRef(0);
-  const booted = useRef(false);
+  const isPublic = PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 
   const refresh = useCallback(async () => {
-    const gen = ++refreshGen.current;
     try {
-      const id = getStoredUserId();
-      if (!id) {
-        setUser(null);
-        return;
-      }
-
-      // Unblock UI immediately from localStorage (refresh hang fix)
-      const cached = getStoredSession();
-      if (cached?.id) {
-        setUser(sessionToUser(cached));
-        // Clear loading as soon as we can render with cache
-        setLoading(false);
-      }
-
-      const u = await getUserByIdTimed(id, 4000);
-      // Stale generation: still must not leave loading stuck (handled in finally)
-      if (gen !== refreshGen.current) return;
-
-      if (u) {
-        saveUserSession(u);
-        setUser(u);
-      } else if (!cached?.id) {
-        // No cache and server failed / user gone
-        clearUserSession();
-        setUser(null);
-      }
-      // If server timed out but cache exists, keep cached user
-    } catch (e) {
-      console.error("auth refresh", e);
-      // Keep whatever user we already set from cache
+      const me = await fetchMe();
+      setSignupEnabled(me.signupEnabled);
+      setUser(me.user);
+      writeCache(me.user);
+    } catch {
+      // Network/server trouble: keep showing the last known user (server still enforces auth).
+      setUser((u) => u ?? readCache());
     } finally {
-      // Always clear loading — even stale generations must not leave the spinner.
-      // (React Strict Mode double-invoke was able to skip setLoading when gen mismatched.)
       setLoading(false);
     }
   }, []);
 
-  // Run before paint on client so cached session skips the full-screen spinner
-  useLayoutEffect(() => {
-    if (booted.current) return;
-    booted.current = true;
-
-    const cached = getStoredSession();
-    if (cached?.id) {
-      setUser(sessionToUser(cached));
-      setLoading(false);
-    } else if (!getStoredUserId()) {
-      // Definitely logged out — don't wait for network
-      setLoading(false);
-    }
+  useEffect(() => {
     void refresh();
   }, [refresh]);
 
-  // Safety: never stay on loading screen forever
-  useEffect(() => {
-    if (!loading) return;
-    const t = window.setTimeout(() => {
-      console.warn("auth loading safety timeout");
-      // Last resort: try cache once more
-      const cached = getStoredSession();
-      if (cached?.id) setUser(sessionToUser(cached));
-      setLoading(false);
-    }, LOADING_SAFETY_MS);
-    return () => window.clearTimeout(t);
-  }, [loading]);
-
   useEffect(() => {
     if (loading) return;
-    const isPublic = PUBLIC_PATHS.some(
-      (p) => pathname === p || pathname.startsWith(`${p}/`)
-    );
-    if (!user && !isPublic) {
-      router.replace("/login");
-    }
-    if (user && pathname === "/login") {
-      router.replace("/");
-    }
-  }, [user, loading, pathname, router]);
+    if (!user && !isPublic) router.replace("/login");
+    if (user && pathname === "/login") router.replace("/");
+  }, [user, loading, pathname, isPublic, router]);
 
-  // If redirect to login stalls, show a manual link
-  useEffect(() => {
-    if (loading || user) {
-      setShowLoginLink(false);
-      return;
-    }
-    const isPublic = PUBLIC_PATHS.some(
-      (p) => pathname === p || pathname.startsWith(`${p}/`)
-    );
-    if (isPublic) {
-      setShowLoginLink(false);
-      return;
-    }
-    const t = window.setTimeout(() => setShowLoginLink(true), REDIRECT_HINT_MS);
-    return () => window.clearTimeout(t);
-  }, [loading, user, pathname]);
+  const login = useCallback(
+    async (name: string, pin: string) => {
+      const r = await loginWithPin(name, pin);
+      if (r.ok) await refresh();
+      return r;
+    },
+    [refresh]
+  );
 
-  const login = useCallback(async (name: string) => {
-    try {
-      const u = await loginByName(name);
-      if (!u) {
-        return {
-          ok: false,
-          message: "이름을 찾을 수 없어요. 등록 후 이용해 주세요.",
-        };
-      }
-      saveUserSession(u);
-      setUser(u);
-      setLoading(false);
-      return { ok: true };
-    } catch {
-      return {
-        ok: false,
-        message: "서버 연결이 불안정해요. 잠시 후 다시 시도해 주세요.",
-      };
-    }
-  }, []);
-
-  const register = useCallback(async (name: string, organization: string) => {
-    try {
-      const { user: u, error } = await registerUser(name, organization);
-      if (!u) {
-        return { ok: false, message: error ?? "등록 실패" };
-      }
-      saveUserSession(u);
-      setUser(u);
-      setLoading(false);
-      return { ok: true };
-    } catch {
-      return {
-        ok: false,
-        message: "서버 연결이 불안정해요. 잠시 후 다시 시도해 주세요.",
-      };
-    }
-  }, []);
+  const register = useCallback(
+    async (name: string, organization: string, pin: string) => {
+      const r = await signup(name, organization, pin);
+      if (r.ok) await refresh();
+      return r;
+    },
+    [refresh]
+  );
 
   const logout = useCallback(() => {
-    clearUserSession();
-    setUser(null);
-    setLoading(false);
-    router.replace("/login");
+    void logoutSession().finally(() => {
+      writeCache(null);
+      setUser(null);
+      router.replace("/login");
+    });
   }, [router]);
 
   const value = useMemo(
-    () => ({ user, loading, login, register, logout, refresh }),
-    [user, loading, login, register, logout, refresh]
-  );
-
-  const isPublic = PUBLIC_PATHS.some(
-    (p) => pathname === p || pathname.startsWith(`${p}/`)
+    () => ({ user, loading, signupEnabled, login, register, logout, refresh }),
+    [user, loading, signupEnabled, login, register, logout, refresh]
   );
 
   let body: ReactNode = children;
-  // Only full-screen block when we have no user to show yet
-  if (loading && !user) {
+  if (loading && !isPublic) {
     body = (
       <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-3 px-4 text-slate-300">
-        <p>불러오는 중…</p>
-        <p className="text-xs text-slate-500">잠시만 기다려 주세요</p>
-        <button
-          type="button"
-          className="mt-2 text-sm text-sky-300 underline"
-          onClick={() => {
-            const cached = getStoredSession();
-            if (cached?.id) setUser(sessionToUser(cached));
-            setLoading(false);
-            void refresh();
-          }}
-        >
-          계속하기
-        </button>
+        <p className="text-lg">불러오는 중…</p>
       </div>
     );
-  } else if (!loading && !user && !isPublic) {
+  } else if (!user && !isPublic) {
     body = (
       <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-3 px-4 text-slate-300">
-        <p>로그인 페이지로 이동 중…</p>
-        {showLoginLink && (
-          <Link href="/login" className="text-sm text-sky-300 underline">
-            로그인이 안 되면 여기를 눌러 주세요
-          </Link>
-        )}
+        <p>로그인 화면으로 가는 중…</p>
+        <Link href="/login" className="text-base text-sky-300 underline">
+          여기를 눌러도 돼요
+        </Link>
       </div>
     );
   }
@@ -260,8 +125,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 export function useAuth(): AuthContextValue {
   const ctx = useContext(AuthContext);
-  if (!ctx) {
-    throw new Error("useAuth must be used within AuthProvider");
-  }
+  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
   return ctx;
 }

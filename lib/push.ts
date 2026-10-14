@@ -1,5 +1,6 @@
+import "server-only";
 import webpush from "web-push";
-import { supabase } from "@/lib/supabase";
+import { requireDb } from "@/lib/server/db";
 
 export type PushSubscriptionJSON = {
   endpoint: string;
@@ -65,7 +66,7 @@ export async function savePushSubscription(
     updated_at: new Date().toISOString(),
   };
 
-  const { error } = await supabase
+  const { error } = await requireDb()
     .from(TABLE)
     .upsert(row, { onConflict: "app,endpoint" });
 
@@ -79,17 +80,15 @@ export async function savePushSubscription(
           "DB 테이블이 없어요. Supabase에 push_subscriptions 테이블을 만들어 주세요.",
       };
     }
-    return { ok: false, error: `구독 저장 실패: ${msg}` };
+    return { ok: false, error: "구독을 저장하지 못했어요." };
   }
   return { ok: true };
 }
 
-export async function removePushSubscription(endpoint: string): Promise<boolean> {
-  const { error } = await supabase
-    .from(TABLE)
-    .delete()
-    .eq("app", PUSH_APP)
-    .eq("endpoint", endpoint);
+export async function removePushSubscription(endpoint: string, userId?: string): Promise<boolean> {
+  let q = requireDb().from(TABLE).delete().eq("app", PUSH_APP).eq("endpoint", endpoint);
+  if (userId) q = q.eq("user_id", userId);
+  const { error } = await q;
   if (error) {
     console.error("removePushSubscription", error);
     return false;
@@ -98,7 +97,7 @@ export async function removePushSubscription(endpoint: string): Promise<boolean>
 }
 
 export async function listSubscriptionsForUser(userId: string) {
-  const { data, error } = await supabase
+  const { data, error } = await requireDb()
     .from(TABLE)
     .select("endpoint, p256dh, auth")
     .eq("app", PUSH_APP)
@@ -111,7 +110,7 @@ export async function listSubscriptionsForUser(userId: string) {
 }
 
 export async function listAllSubscriptions() {
-  const { data, error } = await supabase
+  const { data, error } = await requireDb()
     .from(TABLE)
     .select("endpoint, p256dh, auth, user_id")
     .eq("app", PUSH_APP);
@@ -164,8 +163,7 @@ export async function sendPushToSubscription(
 
 export async function sendPushToUser(
   userId: string,
-  payload: PushPayload,
-  extraSub?: PushSubscriptionJSON | null
+  payload: PushPayload
 ): Promise<{
   sent: number;
   failed: number;
@@ -176,17 +174,6 @@ export async function sendPushToUser(
   const { rows, error: dbError } = await listSubscriptionsForUser(userId);
   const map = new Map<string, { endpoint: string; p256dh: string; auth: string }>();
   for (const r of rows) map.set(r.endpoint, r);
-
-  // Allow client to pass live subscription (helps if DB lag / first test)
-  if (extraSub?.endpoint && extraSub.keys?.p256dh && extraSub.keys?.auth) {
-    map.set(extraSub.endpoint, {
-      endpoint: extraSub.endpoint,
-      p256dh: extraSub.keys.p256dh,
-      auth: extraSub.keys.auth,
-    });
-    // best-effort save
-    await savePushSubscription(userId, extraSub);
-  }
 
   const list = Array.from(map.values());
   let sent = 0;

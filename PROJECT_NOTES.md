@@ -48,3 +48,11 @@ corepack pnpm build                              # 2026-10-14 기준 성공
 ENABLE_PWA_DEV=1 pnpm dev                        # 개발 모드에서 SW/푸시 테스트
 ```
 - `pnpm lint`는 ESLint 설정이 없어서 대화형 설정 질문에서 멈춰요(.eslintrc 추가 필요)
+
+## 보안 개편 (브랜치 `security/server-api`)
+- 브라우저는 Supabase에 직접 접속하지 않아요. 모든 데이터는 `/api/*` → `lib/server/db.ts`(service role, server-only).
+- 로그인: 이름 + 6자리 PIN (`/api/session`), HMAC 서명 HttpOnly 쿠키 `sj_session`(30일, PIN 바뀌면 무효), role은 요청마다 DB에서 읽음. 5번 틀리면 10분 잠금, IP당 10분 20회 실패 시 429.
+- PIN은 관리자(`/api/admin/pin`) 또는 `node scripts/set-pin.mjs`(입력 숨김)로만 지정. PIN 없는 이름은 로그인 불가.
+- 공개 가입은 `ALLOW_PUBLIC_SIGNUP=1`일 때만(기본 꺼짐).
+- 푸시: 구독/발송 모두 세션 필요, 고정 템플릿과 같은 사이트 경로만. 크론은 `Authorization: Bearer CRON_SECRET`만.
+- 새 환경변수: `SUPABASE_SERVICE_ROLE_KEY`, `SESSION_SECRET`(앱별 32바이트 랜덤). `PUSH_CRON_SECRET`은 더 이상 쓰지 않음.

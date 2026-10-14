@@ -57,10 +57,7 @@ export function PushNotifyCard() {
       const res = await fetch("/api/push/subscribe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId: user.id,
-          subscription: payload,
-        }),
+        body: JSON.stringify({ subscription: payload }),
       });
       const data = (await res.json()) as { error?: string };
       if (!res.ok) {
